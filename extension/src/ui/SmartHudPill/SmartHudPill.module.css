@@ -1,0 +1,265 @@
+.container {
+    pointer-events: none;
+    /* Ensures the wrapper passes clicks through */
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    z-index: 9999;
+    /* CRITICAL: Only occupy exact pill space, not entire corner */
+    width: fit-content;
+    height: fit-content;
+}
+
+.pill {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.75);
+    /* Semi-transparent for blur */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    /* More visible border */
+    /* overflow: hidden;  <-- REMOVE THIS to allow click target expansion if needed */
+    overflow: visible;
+    border-radius: 9999px;
+    padding: 6px 12px;
+    /* Keep visual padding */
+
+    /* Expand click area with pseudo-element */
+    position: relative;
+
+    /* Compact padding */
+    display: flex;
+    flex-direction: column;
+    /* Column layout for drawer */
+    gap: 0;
+    align-items: center;
+    /* Center content horizontally */
+
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    /* Delineado text */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: default;
+    transition:
+        opacity 0.28s ease,
+        min-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        padding 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        background 0.3s ease,
+        box-shadow 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    /* Important for clipping drawer */
+    min-width: fit-content;
+}
+
+/* Pseudo-element to expand click area */
+.pill::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    left: -20px;
+    right: -20px;
+    bottom: -20px;
+    z-index: -1;
+    pointer-events: auto;
+}
+
+.transparent {
+    opacity: 0.1;
+    pointer-events: auto;
+    /* background: rgba(10, 10, 10, 0.5); removed background as it should be invisible */
+}
+
+/* Hover/Active Glow - "Llamativo" with cyan text */
+.pill:hover {
+    box-shadow:
+        0 0 15px rgba(50, 200, 255, 0.5),
+        0 0 2px 1px rgba(50, 200, 255, 0.6);
+    border-color: rgba(50, 200, 255, 0.9);
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.expanded {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    /* Reduced shadow to prevent clipping */
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 32px;
+    min-width: 220px;
+    padding-bottom: 14px;
+    cursor: default;
+    opacity: 1 !important;
+    transform: translateY(0) scale(1);
+}
+
+/* Passive Content */
+.passiveContent {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px;
+    /* Increased click area */
+    cursor: pointer;
+    width: 100%;
+    min-height: 28px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.separator {
+    width: 1px;
+    height: 18px;
+    /* Taller separator */
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.streakContainer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Increased gap */
+}
+
+.fireIcon {
+    width: 18px;
+    height: 18px;
+    /* Color is handled by SVG fills now */
+    animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+        filter: brightness(1) drop-shadow(0 0 2px rgba(6, 182, 212, 0.3));
+    }
+
+    50% {
+        transform: scale(1.05);
+        opacity: 1;
+        filter: brightness(1.3) drop-shadow(0 0 8px rgba(6, 182, 212, 0.9));
+    }
+}
+
+.gemIcon {
+    width: 16px;
+    height: 16px;
+    margin-right: -2px;
+    /* Slight adjustment to sit closer to the number if needed, or keep 0 */
+}
+
+/* Drawer Animation mechanism */
+.drawer {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition:
+        grid-template-rows 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+        opacity 0.32s ease,
+        margin-top 0.5s cubic-bezier(0.19, 1, 0.22, 1),
+        transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    opacity: 0;
+    width: 100%;
+    margin-top: 0;
+    pointer-events: none;
+    /* CRITICAL: Don't block clicks when collapsed */
+    transform-origin: top center;
+    transform: translateY(-2px) scaleY(0.985);
+}
+
+.drawerOpen {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    margin-top: 16px;
+    /* Spacing between header and body when open */
+    pointer-events: auto;
+    /* Re-enable clicks when expanded */
+    transform: translateY(0) scaleY(1);
+}
+
+/* Active Content */
+.activeContent {
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    transition: opacity 0.22s ease;
+}
+
+.actionButton {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.actionButton:hover {
+    background: rgba(14, 165, 233, 0.15);
+    color: #0ea5e9;
+    transform: translateX(4px);
+}
+
+.actionIcon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.8;
+}
+
+.actionButton:hover .actionIcon {
+    opacity: 1;
+}
+
+/* Footer Actions */
+.footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hideButton {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.2s;
+}
+
+.hideButton:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.hideButtonGroup {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.hideButtonDivider {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+    user-select: none;
+}

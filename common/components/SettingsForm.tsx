@@ -1,0 +1,385 @@
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { type CreateCSSProperties, makeStyles } from '@mui/styles';
+import { useTheme } from '@mui/material/styles';
+import Box from '@mui/material/Box';
+import { type Theme } from '@mui/material';
+import { CardModel } from '@metheus/common';
+import { AsbplayerSettings, PageConfig, PageSettings } from '@metheus/common/settings';
+import { isNumeric } from '@metheus/common/util';
+import { isMobile } from 'react-device-detect';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+// import { Anki } from '../anki';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { TutorialStep } from './settings-model';
+import SubtitleAppearanceSettingsTab from './SubtitleAppearanceSettingsTab';
+import StreamingVideoSettingsTab from './StreamingVideoSettingsTab';
+import MetheusSettingsTab from './MetheusSettingsTab';
+import InformationSettingsTab from './InformationSettingsTab';
+
+interface StylesProps {
+    smallScreen: boolean;
+    heightConstrained?: boolean;
+}
+
+const useStyles = makeStyles<Theme, StylesProps>((theme) => ({
+    root: ({ smallScreen }) => {
+        let styles: any = {
+            maxHeight: '100%',
+            height: 'calc(100% - 48px)',
+        };
+
+        if (!smallScreen) {
+            styles = { ...styles, flexGrow: 1, display: 'flex', height: '100%' };
+        }
+
+        return styles;
+    },
+    tabs: ({ smallScreen, heightConstrained }) => {
+        let buttonStyles: React.CSSProperties = {
+            paddingLeft: 0,
+            paddingRight: theme.spacing(1),
+        };
+        if (heightConstrained) {
+            buttonStyles = { ...buttonStyles, minHeight: 38, fontSize: 12 };
+        }
+        let styles: CreateCSSProperties<StylesProps> = {
+            '& .MuiButtonBase-root': buttonStyles,
+            '& .MuiTab-root': {
+                minWidth: 120,
+            },
+            '& .MuiTabs-scroller': {
+                height: '100%',
+            },
+            '& .MuiTabs-flexContainer': {
+                height: '100%',
+            },
+        };
+
+        if (!smallScreen) {
+            styles = { ...styles, minWidth: 120, width: 120 };
+        }
+
+        return styles;
+    },
+    tabsFlexContainer: ({ smallScreen }) => {
+        if (!smallScreen) {
+            return {
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+            };
+        }
+        return {};
+    },
+
+    formGroup: {
+        '& .MuiTextField-root': {
+            marginTop: theme.spacing(1),
+            marginBottom: theme.spacing(1),
+        },
+    },
+    subtitleSetting: {
+        '& .MuiTextField-root': {
+            marginTop: theme.spacing(1),
+            marginBottom: theme.spacing(1),
+        },
+    },
+    subtitlePreview: {
+        backgroundImage: `linear-gradient(45deg, ${theme.palette.action.disabledBackground} 25%, transparent 25%), linear-gradient(-45deg, ${theme.palette.action.disabledBackground} 25%, transparent 25%), linear-gradient(45deg, transparent 75%, ${theme.palette.action.disabledBackground} 75%), linear-gradient(-45deg, transparent 75%,${theme.palette.action.disabledBackground} 75%)`,
+        backgroundSize: '20px 20px',
+        backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+        marginTop: theme.spacing(1),
+        marginBottom: theme.spacing(1),
+        maxWidth: '100%',
+        padding: 10,
+    },
+    subtitlePreviewInput: {
+        border: 'none',
+        width: '100%',
+        textAlign: 'center',
+        backgroundColor: 'rgba(0,0,0,0)',
+        '&:focus': {
+            outline: 'none',
+        },
+    },
+    switchLabel: {
+        justifyContent: 'space-between',
+        marginLeft: 0,
+        marginRight: -8,
+    },
+    verticallyCentered: {
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+    },
+}));
+
+type TabsOrientation = 'horizontal' | 'vertical';
+
+interface PanelStyleProps {
+    tabsOrientation: TabsOrientation;
+}
+
+const usePanelStyles = makeStyles<Theme, PanelStyleProps>((theme: Theme) => ({
+    panel: ({ tabsOrientation }) => ({
+        paddingLeft: tabsOrientation === 'horizontal' ? theme.spacing(1) : theme.spacing(2),
+        paddingRight: theme.spacing(1),
+        paddingTop: tabsOrientation === 'horizontal' ? theme.spacing(1) : 0,
+        overflowY: 'scroll',
+        maxHeight: '100%',
+        height: '100%',
+        width: '100%',
+    }),
+}));
+
+interface TabPanelProps {
+    children?: React.ReactNode;
+    index: any;
+    value: any;
+    tabsOrientation: TabsOrientation;
+}
+
+const TabPanel = React.forwardRef<HTMLDivElement, TabPanelProps>(function TabPanel(
+    { children, value, index, tabsOrientation, ...other }: TabPanelProps,
+    ref
+) {
+    const classes = usePanelStyles({ tabsOrientation });
+    return (
+        <Box ref={ref} className={classes.panel} hidden={value !== index} {...other}>
+            {value === index && children}
+        </Box>
+    );
+});
+
+type TabName =
+    | 'anki-settings'
+    | 'mining-settings'
+    | 'dictionary'
+    | 'subtitle-appearance'
+    | 'keyboard-shortcuts'
+    | 'streaming-video'
+    | 'misc-settings';
+
+interface SettingsFormPageConfig extends PageConfig {
+    faviconUrl: string;
+}
+
+export type PageConfigMap = { [K in keyof PageSettings]: SettingsFormPageConfig };
+
+interface Props {
+    anki?: any; // Made optional/any to easier removal
+    extensionInstalled: boolean;
+    extensionVersion?: string;
+    extensionSupportsAppIntegration: boolean;
+    extensionSupportsOverlay: boolean;
+    extensionSupportsSidePanel: boolean;
+    extensionSupportsOrderableAnkiFields: boolean;
+    extensionSupportsTrackSpecificSettings: boolean;
+    extensionSupportsSubtitlesWidthSetting: boolean;
+    extensionSupportsPauseOnHover: boolean;
+    extensionSupportsExportCardBind: boolean;
+    extensionSupportsPageSettings: boolean;
+    insideApp?: boolean;
+    appVersion?: string;
+    settings: AsbplayerSettings;
+    pageConfigs?: PageConfigMap;
+    scrollToId?: string;
+    chromeKeyBinds: { [key: string]: string | undefined };
+    localFontsAvailable: boolean;
+    localFontsPermission?: PermissionState;
+    localFontFamilies: string[];
+    supportedLanguages: string[];
+    forceVerticalTabs?: boolean;
+    inTutorial?: boolean;
+    heightConstrained?: boolean;
+    testCard?: () => Promise<CardModel>;
+    onSettingsChanged: (settings: Partial<AsbplayerSettings>) => void;
+    onOpenChromeExtensionShortcuts: () => void;
+    onUnlockLocalFonts: () => void;
+
+    // Dictionary Props
+    installedDictionaries?: Record<string, boolean>;
+    downloadingDictionaries?: Record<string, number>;
+    onManageDictionary?: (langCode: string) => void;
+    onDeleteDictionary?: (langCode: string) => void;
+    pendingSyncCount?: number;
+    knownWordCounts?: Record<string, number>;
+    decks?: { id: string; name: string }[];
+    noteTypes?: { id: string; name: string }[];
+}
+
+// Filter out keys that look like '0', '1', ... as those are invalid
+const cssStyles = Object.keys(document.body.style).filter((s) => !isNumeric(s));
+
+export default function SettingsForm({
+    anki,
+    settings,
+    pageConfigs,
+    extensionInstalled,
+    extensionVersion,
+    extensionSupportsAppIntegration,
+    extensionSupportsOverlay,
+    extensionSupportsSidePanel,
+    extensionSupportsOrderableAnkiFields,
+    extensionSupportsTrackSpecificSettings,
+    extensionSupportsSubtitlesWidthSetting,
+    extensionSupportsPauseOnHover,
+    extensionSupportsExportCardBind,
+    extensionSupportsPageSettings,
+    insideApp,
+    appVersion,
+    scrollToId,
+    chromeKeyBinds,
+    localFontsAvailable,
+    localFontsPermission,
+    localFontFamilies,
+    supportedLanguages,
+    forceVerticalTabs,
+    inTutorial,
+    heightConstrained,
+    testCard,
+    onSettingsChanged,
+    onOpenChromeExtensionShortcuts,
+    onUnlockLocalFonts,
+    installedDictionaries,
+    downloadingDictionaries,
+    onManageDictionary,
+    onDeleteDictionary,
+    pendingSyncCount,
+    knownWordCounts,
+    decks,
+    noteTypes,
+}: Props) {
+    const theme = useTheme();
+    const smallScreen = useMediaQuery(theme.breakpoints.down(500)) && !forceVerticalTabs;
+    const classes = useStyles({ smallScreen, heightConstrained });
+    const handleSettingChanged = useCallback(
+        async <K extends keyof AsbplayerSettings>(key: K, value: AsbplayerSettings[K]) => {
+            onSettingsChanged({ [key]: value });
+        },
+        [onSettingsChanged]
+    );
+    const { t } = useTranslation();
+    const { noteType } = settings;
+    const tabIndicesById = useMemo(() => {
+        const tabs = ['metheus', 'subtitle-appearance', 'information'];
+
+        return Object.fromEntries(tabs.map((tab, i) => [tab, i]));
+    }, []);
+
+    useEffect(() => {
+        if (!scrollToId) {
+            return;
+        }
+
+        if (scrollToId in tabIndicesById) {
+            setTabIndex(tabIndicesById[scrollToId as TabName] || 0);
+        }
+    }, [scrollToId, tabIndicesById]);
+
+    const [tabIndex, setTabIndex] = useState<number>(0);
+    const tabsOrientation = smallScreen ? 'horizontal' : 'vertical';
+    const [tutorialStep, setTutorialStep] = useState<TutorialStep>(TutorialStep.ankiConnect);
+
+    useEffect(() => {
+        if (tutorialStep === TutorialStep.noteType && noteType) {
+            setTutorialStep(TutorialStep.ankiFields);
+        }
+    }, [tutorialStep, noteType]);
+
+    const ankiPanelRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (tutorialStep === TutorialStep.testCard) {
+            ankiPanelRef.current?.scrollBy({ behavior: 'smooth', top: 100000 });
+        }
+    }, [tutorialStep]);
+
+    return (
+        <div className={classes.root}>
+            {/* HIDDEN COMPONENT TO ENFORCE DEFAULTS */}
+            {extensionSupportsAppIntegration && (
+                <div style={{ display: 'none' }}>
+                    <StreamingVideoSettingsTab
+                        settings={settings}
+                        onSettingChanged={handleSettingChanged}
+                        onSettingsChanged={onSettingsChanged}
+                        insideApp={insideApp}
+                        extensionSupportsOverlay={extensionSupportsOverlay}
+                        extensionSupportsPageSettings={extensionSupportsPageSettings}
+                        pageConfigs={pageConfigs}
+                    />
+                </div>
+            )}
+
+            <Tabs
+                orientation={tabsOrientation}
+                variant="scrollable"
+                value={tabIndex}
+                className={classes.tabs}
+                scrollButtons={false}
+                onChange={(event, index) => setTabIndex(index)}
+                style={{
+                    maxWidth: '100vw',
+                    marginLeft: smallScreen ? 'auto' : 0,
+                    marginRight: smallScreen ? 'auto' : 0,
+                }}
+            >
+                <Tab tabIndex={0} label={t('settings.integration')} id="metheus" />
+                <Tab tabIndex={1} label={t('settings.subtitleAppearance')} id="subtitle-appearance" />
+                <Tab
+                    tabIndex={2}
+                    label={t('about.title', { defaultValue: t('info.details') })}
+                    id="information"
+                    style={{ marginTop: 'auto' }}
+                />
+            </Tabs>
+            <TabPanel value={tabIndex} index={tabIndicesById['metheus']} tabsOrientation={tabsOrientation}>
+                <MetheusSettingsTab
+                    settings={settings}
+                    extensionVersion={extensionVersion}
+                    onSettingChanged={handleSettingChanged}
+                    supportedLanguages={supportedLanguages}
+                    extensionInstalled={extensionInstalled}
+                    extensionSupportsPauseOnHover={extensionSupportsPauseOnHover}
+                    installedDictionaries={installedDictionaries}
+                    downloadingDictionaries={downloadingDictionaries}
+                    onManageDictionary={onManageDictionary}
+                    onDeleteDictionary={onDeleteDictionary}
+                    pendingSyncCount={pendingSyncCount}
+                    knownWordCounts={knownWordCounts}
+                    decks={decks}
+                    noteTypes={noteTypes}
+                />
+            </TabPanel>
+            <TabPanel value={tabIndex} index={tabIndicesById['subtitle-appearance']} tabsOrientation={tabsOrientation}>
+                <SubtitleAppearanceSettingsTab
+                    settings={settings}
+                    onSettingChanged={handleSettingChanged}
+                    onSettingsChanged={onSettingsChanged}
+                    extensionInstalled={extensionInstalled}
+                    extensionSupportsTrackSpecificSettings={extensionSupportsTrackSpecificSettings}
+                    extensionSupportsSubtitlesWidthSetting={extensionSupportsSubtitlesWidthSetting}
+                    localFontsAvailable={localFontsAvailable}
+                    localFontsPermission={localFontsPermission}
+                    localFontFamilies={localFontFamilies}
+                    onUnlockLocalFonts={onUnlockLocalFonts}
+                />
+            </TabPanel>
+            <TabPanel value={tabIndex} index={tabIndicesById['information']} tabsOrientation={tabsOrientation}>
+                <InformationSettingsTab
+                    settings={settings}
+                    onSettingChanged={handleSettingChanged}
+                    chromeKeyBinds={chromeKeyBinds}
+                    extensionInstalled={extensionInstalled}
+                    onOpenChromeExtensionShortcuts={onOpenChromeExtensionShortcuts}
+                    appVersion={insideApp ? appVersion : undefined}
+                    extensionVersion={extensionInstalled ? extensionVersion : undefined}
+                    insideApp={insideApp}
+                />
+            </TabPanel>
+        </div>
+    );
+}

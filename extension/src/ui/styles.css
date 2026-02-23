@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+/* Shadow DOM reset
+   IMPORTANT: "all: initial" breaks Tailwind's variable-based styles and can make
+   the UI look tiny/un-styled. We keep a minimal reset instead.
+*/
+:host {
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        Segoe UI,
+        Roboto,
+        Arial,
+        sans-serif;
+    color: inherit;
+    line-height: 1.2;
+}
+
+#ln-popup-root,
+#ln-popup-root * {
+    box-sizing: border-box;
+}
+
+/* Force internal UI scale for the popup shadow-root.
+   Some sites apply aggressive font-size/zoom rules; this keeps the popup readable.
+*/
+/* One source of truth for popup scale */
+/* One source of truth for popup scale */
+#ln-popup-root {
+    /* V2 Refinement: Significantly smaller, standard web application text sizes */
+    font-size: clamp(12px, 0.95vw, 14.5px);
+    line-height: 1.25;
+}
+
+/* (Legacy) Some pages may rely on this class from shadow CSS.
+   Actual subtitle coloring is handled by injected page CSS in subtitle-colorizer.
+*/
+.ln-learning {
+    color: #facc15;
+    text-decoration-line: underline;
+    text-decoration-color: #facc15;
+    text-decoration-thickness: 4px;
+    text-underline-offset: 4px;
+}

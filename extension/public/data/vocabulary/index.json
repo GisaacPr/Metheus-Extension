@@ -1,0 +1,144 @@
+{
+    "version": "1.0",
+    "source": "FrequencyWords (OpenSubtitles 2016-2018)",
+    "description": "50,000 most frequent words per language",
+    "format": "word<space>frequency_count",
+    "languages": [
+        {
+            "code": "en",
+            "name": "English",
+            "file": "en_50k.txt",
+            "words": 50000,
+            "size_kb": 608.2
+        },
+        {
+            "code": "es",
+            "name": "Spanish",
+            "file": "es_50k.txt",
+            "words": 50000,
+            "size_kb": 643.2
+        },
+        {
+            "code": "fr",
+            "name": "French",
+            "file": "fr_50k.txt",
+            "words": 50000,
+            "size_kb": 638.1
+        },
+        {
+            "code": "de",
+            "name": "German",
+            "file": "de_50k.txt",
+            "words": 50000,
+            "size_kb": 647
+        },
+        {
+            "code": "it",
+            "name": "Italian",
+            "file": "it_50k.txt",
+            "words": 50000,
+            "size_kb": 637.9
+        },
+        {
+            "code": "pt",
+            "name": "Portuguese",
+            "file": "pt_50k.txt",
+            "words": 50000,
+            "size_kb": 637.1
+        },
+        {
+            "code": "ru",
+            "name": "Russian",
+            "file": "ru_50k.txt",
+            "words": 50000,
+            "size_kb": 975.5
+        },
+        {
+            "code": "ja",
+            "name": "Japanese",
+            "file": "ja_50k.txt",
+            "words": 50000,
+            "size_kb": 610
+        },
+        {
+            "code": "ko",
+            "name": "Korean",
+            "file": "ko_50k.txt",
+            "words": 50000,
+            "size_kb": 678.8
+        },
+        {
+            "code": "zh",
+            "name": "Chinese (Simplified)",
+            "file": "zh_50k.txt",
+            "words": 50000,
+            "size_kb": 527.8
+        },
+        {
+            "code": "ar",
+            "name": "Arabic",
+            "file": "ar_50k.txt",
+            "words": 50000,
+            "size_kb": 786.9
+        },
+        {
+            "code": "nl",
+            "name": "Dutch",
+            "file": "nl_50k.txt",
+            "words": 50000,
+            "size_kb": 635.5
+        },
+        {
+            "code": "pl",
+            "name": "Polish",
+            "file": "pl_50k.txt",
+            "words": 50000,
+            "size_kb": 660.6
+        },
+        {
+            "code": "tr",
+            "name": "Turkish",
+            "file": "tr_50k.txt",
+            "words": 50000,
+            "size_kb": 695.2
+        },
+        {
+            "code": "vi",
+            "name": "Vietnamese",
+            "file": "vi_50k.txt",
+            "words": 50000,
+            "size_kb": 475.6
+        },
+        {
+            "code": "el",
+            "name": "Greek",
+            "file": "el_50k.txt",
+            "words": 50000,
+            "size_kb": 994.7
+        },
+        {
+            "code": "hu",
+            "name": "Hungarian",
+            "file": "hu_50k.txt",
+            "words": 50000,
+            "size_kb": 682.3
+        },
+        {
+            "code": "sv",
+            "name": "Swedish",
+            "file": "sv_50k.txt",
+            "words": 50000,
+            "size_kb": 609.3
+        },
+        {
+            "code": "id",
+            "name": "Indonesian",
+            "file": "id_50k.txt",
+            "words": 50000,
+            "size_kb": 575.1
+        }
+    ],
+    "total_languages": 19,
+    "total_words": 950000,
+    "total_size_mb": 11.7
+}

@@ -1,0 +1,39 @@
+{
+    "name": "metheus-extension",
+    "version": "1.0.0",
+    "private": true,
+    "license": "AGPL-3.0-only",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/GisaacPr/Metheus-Extension.git"
+    },
+    "homepage": "https://github.com/GisaacPr/Metheus-Extension",
+    "bugs": {
+        "url": "https://github.com/GisaacPr/Metheus-Extension/issues"
+    },
+    "workspaces": {
+        "packages": [
+            "client",
+            "extension",
+            "common"
+        ]
+    },
+    "devDependencies": {
+        "@typescript-eslint/parser": "^8.38.0",
+        "eslint": "^9.32.0",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "prettier": "^3.6.2",
+        "yarn-upgrade-all": "^0.7.5"
+    },
+    "scripts": {
+        "verify": "yarn workspace @metheus/client run test && yarn workspace @metheus/extension run test && yarn run eslint common extension/src && yarn run pretty:check",
+        "verify:full": "scripts/loc/loc-keys-match && scripts/loc/loc-codes-in-extension-config && scripts/page-file-references-are-correct && yarn workspace @metheus/common run test && yarn workspace @metheus/client run test && yarn workspace @metheus/extension run test && yarn run eslint common extension/src && yarn run pretty:check",
+        "pretty": "yarn prettier --write './(client|common|extension)/**/*.(js|ts|tsx|css)'",
+        "pretty:check": "yarn prettier --check './(client|common|extension)/**/*.(js|ts|tsx|css)'"
+    },
+    "packageManager": "yarn@3.2.0",
+    "resolutions": {
+        "lamejs@1.2.0": "patch:lamejs@npm:1.2.0#.yarn/patches/lamejs-npm-1.2.0-b0315d05aa.patch"
+    }
+}

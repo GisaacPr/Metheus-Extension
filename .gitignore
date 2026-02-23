@@ -1,0 +1,54 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+/common/node_modules
+/node_modules
+/.pnp
+.pnp.js
+.pnp.*
+
+# ── Yarn (keep patches and releases) ────────────────────────────────────────
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+
+# ── Build Output ─────────────────────────────────────────────────────────────
+/build
+dist/
+.output/
+.wxt/
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+coverage/
+
+# ── Environment ──────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.submit.example
+
+# ── Secrets / Certificates ───────────────────────────────────────────────────
+*.pem
+*.key
+
+# ── Debug Logs ───────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── AI Agent Artifacts ───────────────────────────────────────────────────────
+.agent/
+.qodo/
+.gemini/

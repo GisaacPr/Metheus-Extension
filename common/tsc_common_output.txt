@@ -1,0 +1,18 @@
+node_modules/@types/node/buffer.d.ts(531,19): error TS2430: Interface 'Buffer' incorrectly extends interface 'Uint8Array<ArrayBufferLike>'.
+  The types of 'slice(...).buffer' are incompatible between these types.
+    Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+      Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+node_modules/@types/node/fs/promises.d.ts(49,66): error TS2344: Type 'Buffer' does not satisfy the constraint 'ArrayBufferView'.
+  Type 'Buffer' is not assignable to type 'Uint8Array<ArrayBufferLike> | DataView<ArrayBufferLike>'.
+    Type 'Buffer' is not assignable to type 'Uint8Array<ArrayBufferLike>'.
+      The types of 'slice(...).buffer' are incompatible between these types.
+        Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+          Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+node_modules/@types/node/fs/promises.d.ts(211,49): error TS2344: Type 'Buffer' does not satisfy the constraint 'ArrayBufferView'.
+  Type 'Buffer' is not assignable to type 'Uint8Array<ArrayBufferLike> | DataView<ArrayBufferLike>'.
+    Type 'Buffer' is not assignable to type 'Uint8Array<ArrayBufferLike>'.
+      The types of 'slice(...).buffer' are incompatible between these types.
+        Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+          Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+node_modules/@types/node/globals.d.ts(72,13): error TS2403: Subsequent variable declarations must have the same type.  Variable 'AbortSignal' must be of type '{ new (): AbortSignal; prototype: AbortSignal; abort(reason?: any): AbortSignal; any(signals: AbortSignal[]): AbortSignal; timeout(milliseconds: number): AbortSignal; }', but here has type '{ new (): AbortSignal; prototype: AbortSignal; }'.
+node_modules/@types/node/module.d.ts(106,13): error TS2386: Overload signatures must all be optional or required.
