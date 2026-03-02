@@ -67,7 +67,7 @@ import NeedRefreshDialog from './NeedRefreshDialog';
 
 const latestExtensionVersion = '1.12.0';
 const extensionUrl =
-    'https://chromewebstore.google.com/detail/asbplayer-language-learni/hkledmpjpaehamkiehglnbelcpdflcab';
+    'https://chromewebstore.google.com/detail/metheus-extension-languag/megcmimgojgpnhkenbgdjbklbmcpglcf?hl=es&utm_source=ext_sidebar';
 
 const INPUT_ACCEPT_FILE_EXTENSIONS =
     '.srt,.ass,.vtt,.sup,.mp3,.m4a,.aac,.flac,.ogg,.wav,.opus,.mkv,.mp4,.avi,.m4v,.webm';

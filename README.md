@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="AGPLv3 License"></a>
   <a href="https://github.com/GisaacPr/metheus-extension/actions/workflows/verify.yml"><img src="https://github.com/GisaacPr/metheus-extension/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
-  <a href="https://chromewebstore.google.com/detail/metheus-extension/placeholder"><img src="https://img.shields.io/badge/Chrome_Web_Store-v1.0.0-4285F4.svg" alt="Chrome Web Store"></a>
+  <a href="https://chromewebstore.google.com/detail/metheus-extension-languag/megcmimgojgpnhkenbgdjbklbmcpglcf?hl=es&utm_source=ext_sidebar"><img src="https://img.shields.io/badge/Chrome_Web_Store-v1.0.0-4285F4.svg" alt="Chrome Web Store"></a>
   <a href="https://addons.mozilla.org/en-US/firefox/addon/metheus-extension/"><img src="https://img.shields.io/badge/Firefox_Add--ons-v1.0.0-FF7139.svg" alt="Firefox Add-ons"></a>
 </p>
 
@@ -49,7 +49,7 @@
 
 ### Official Stores
 
-- [Chrome Web Store](https://chromewebstore.google.com/detail/metheus-extension/placeholder)
+- [Chrome Web Store](https://chromewebstore.google.com/detail/metheus-extension-languag/megcmimgojgpnhkenbgdjbklbmcpglcf?hl=es&utm_source=ext_sidebar)
 - [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/metheus-extension/)
 
 ### Manual Build
