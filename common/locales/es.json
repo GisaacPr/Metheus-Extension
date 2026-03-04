@@ -274,9 +274,9 @@
         "createDefaultDeck": "crear el mazo predeterminado"
     },
     "update": {
-        "heading": "asbplayer se ha actualizado a la versión {{version}}.",
+        "heading": "Metheus Extension se ha actualizado a la versión {{version}}.",
         "body": "Consulta las notas de la versión <0>aquí</0>.",
-        "alert": "asbplayer actualizado a la {{version}}. Mira las <0>notas de la versión</0>."
+        "alert": "Metheus Extension actualizado a la {{version}}. Mira las <0>notas de la versión</0>."
     },
     "info": {
         "copiedSubtitle": "Copiado: {{text}}",

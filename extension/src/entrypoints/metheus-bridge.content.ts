@@ -350,6 +350,7 @@ export default defineContentScript({
                 browser.runtime.sendMessage({
                     type: 'METHEUS_DELETE_WORD',
                     word: event.data.word,
+                    language: event.data.language,
                 });
             }
 

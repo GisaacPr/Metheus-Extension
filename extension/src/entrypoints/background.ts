@@ -200,7 +200,7 @@ export default defineBackground(() => {
         if (request.type === 'METHEUS_DELETE_WORD') {
             console.log('[LN Background] Received delete request', request.word);
             const syncService = getMetheusSyncService(settings);
-            syncService.removeCachedWord(request.word);
+            syncService.removeCachedWord(request.word, request.language);
             sendResponse({ success: true });
             return true; // CRITICAL: Return true to keep port open
         }
@@ -300,6 +300,22 @@ export default defineBackground(() => {
 
     // Also listen for internal messages (if sent via bridge/content script)
     browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
+        if (message && message.type === 'METHEUS_DELETE_WORD') {
+            const { word, language } = message;
+            const syncService = getMetheusSyncService(settings);
+            syncService
+                .waitForCache()
+                .then(() => syncService.removeCachedWord(word, language))
+                .then(() => {
+                    sendResponse({ success: true });
+                })
+                .catch((error) => {
+                    console.error('[LN Background] Internal delete failed', error);
+                    sendResponse({ success: false, error: error?.message || 'Unknown error' });
+                });
+            return true;
+        }
+
         if (message && message.type === 'METHEUS_UPDATE_WORD_STATUS') {
             const { word, language, status } = message;
             const syncService = getMetheusSyncService(settings);

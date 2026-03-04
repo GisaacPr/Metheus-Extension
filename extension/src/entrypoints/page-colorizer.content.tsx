@@ -8,6 +8,7 @@
 import type { ContentScriptContext } from '#imports';
 import { SettingsProvider } from '@metheus/common/settings';
 import { ExtensionSettingsStorage } from '../services/extension-settings-storage';
+import type { WordStatus } from '../services/metheus-sync';
 import { SubtitleColorizer } from '../services/subtitle-colorizer';
 import { getWordPopup, WordPopup } from '../services/word-popup';
 
@@ -421,6 +422,7 @@ class PageColorizer {
     private isDraggingPill: boolean = false;
     private videoPillEmptyTrack: boolean = true;
     private runtimeMessageListener?: (message: any) => void;
+    private documentWordStatusListener?: (event: Event) => void;
     private colorizeDebounceId: number | null = null;
     private subtitleDebounceId: number | null = null;
 
@@ -479,6 +481,31 @@ class PageColorizer {
             : 'width 0.28s ease, height 0.34s ease, transform 0.22s ease';
     }
 
+    private async applyRuntimeWordStatusUpdate(word: string, status: number): Promise<void> {
+        if (!this.colorizer) {
+            return;
+        }
+
+        await this.colorizer.refreshLocal();
+        this.colorizer.applyWordStatusLocally(word, status as WordStatus);
+    }
+
+    private async refreshKnownWordsAndRecolorize(): Promise<void> {
+        if (!this.colorizer) {
+            return;
+        }
+
+        await this.colorizer.refreshLocal();
+
+        if (!this.colorizeEnabled) {
+            return;
+        }
+
+        this.decolorizeElements();
+        this.processedCount = 0;
+        this.colorizeSafeElements();
+    }
+
     constructor() {
         const storage = new ExtensionSettingsStorage();
         this.settingsProvider = new SettingsProvider(storage);
@@ -504,13 +531,33 @@ class PageColorizer {
         this.updateGlobalPillVisibility();
 
         this.runtimeMessageListener = (message: any) => {
-            if (message?.command === 'show-global-pill') {
+            const payload = message?.message ?? message;
+            const command = payload?.command ?? message?.command ?? message?.type;
+
+            if (command === 'show-global-pill') {
                 this.userHidden = false;
                 void browser.storage.local.set({ [GLOBAL_PILL_HIDDEN_KEY]: false });
                 if (!this.iframe) {
                     this.createIframeOverlay();
                 }
                 this.updateGlobalPillVisibility();
+                return;
+            }
+
+            if (command === 'metheus-word-status-updated') {
+                const word = payload?.word;
+                const status = payload?.status;
+
+                if (!word || typeof status !== 'number') {
+                    return;
+                }
+
+                void this.applyRuntimeWordStatusUpdate(word, status);
+                return;
+            }
+
+            if (command === 'METHEUS_CONFIG_UPDATED') {
+                void this.refreshKnownWordsAndRecolorize();
             }
         };
         browser.runtime.onMessage.addListener(this.runtimeMessageListener);
@@ -626,6 +673,19 @@ class PageColorizer {
             this.setupObserver();
 
             console.log('[LN Page Colorizer] Colorizer ready');
+
+            this.documentWordStatusListener = (event: Event) => {
+                const customEvent = event as CustomEvent;
+                const { word, status } = customEvent.detail ?? {};
+
+                if (!word || typeof status !== 'number' || !this.colorizer) {
+                    return;
+                }
+
+                this.colorizer.applyWordStatusLocally(word, status as WordStatus);
+            };
+
+            document.addEventListener('metheus-word-status-updated', this.documentWordStatusListener);
         } catch (e) {
             console.error('[LN Page Colorizer] Error:', e);
         }

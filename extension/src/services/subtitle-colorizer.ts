@@ -653,8 +653,14 @@ export class SubtitleColorizer {
     }
 
     applyWordStatusLocally(word: string, status: WordStatus): void {
+        const normalizedWord = normalizeWord(word, this.language);
+        const escapedWord =
+            typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+                ? CSS.escape(normalizedWord)
+                : normalizedWord.replace(/["\\]/g, '\\$&');
+
         // Update all instances of this word in the DOM
-        const wordElements = document.querySelectorAll(`[data-word="${word.toLowerCase()}"]`);
+        const wordElements = document.querySelectorAll(`[data-word="${escapedWord}"]`);
         wordElements.forEach((el) => {
             const htmlEl = el as HTMLElement;
             // Remove old status classes
