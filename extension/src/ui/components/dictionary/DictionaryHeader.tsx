@@ -32,11 +32,11 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
         status >= 4
             ? isDark
                 ? 'text-[#39FF14]'
-                : 'text-[#19A800] [text-shadow:0_0_16px_rgba(57,255,20,0.24)]'
+                : 'text-[#39FF14] [-webkit-text-stroke:0.35px_rgba(24,24,27,0.26)] [text-shadow:0_1px_0_rgba(24,24,27,0.55),0_0_22px_rgba(57,255,20,0.42)]'
             : status >= 1
               ? isDark
                   ? 'text-[#FCEE0A]'
-                  : 'text-[#C99400] [text-shadow:0_0_16px_rgba(252,238,10,0.22)]'
+                  : 'text-[#FCEE0A] [-webkit-text-stroke:0.35px_rgba(24,24,27,0.28)] [text-shadow:0_1px_0_rgba(24,24,27,0.62),0_0_22px_rgba(252,238,10,0.42)]'
               : isDark
                 ? 'text-[#00F0FF]'
                 : 'text-[#007A8A] [text-shadow:0_0_12px_rgba(0,240,255,0.12)]';
@@ -102,7 +102,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         {phonetic && (
                             <span
                                 className={cn(
-                                    'font-mono text-[15px] sm:text-base px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl ml-0.5 shrink-0 max-w-[50%] truncate',
+                                    'font-mono font-semibold text-[18px] sm:text-[21px] px-4 sm:px-[1.125rem] py-2 sm:py-2.5 rounded-xl ml-0.5 shrink-0 max-w-[56%] truncate leading-none',
                                     isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-700 bg-zinc-100'
                                 )}
                             >
@@ -120,11 +120,11 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                                         : badge.type === 'level'
                                           ? isDark
                                               ? 'bg-[#FCEE0A]/20 text-[#FCEE0A] border-[#FCEE0A]/30'
-                                              : 'bg-[#FCEE0A]/16 text-[#C99400] border-[#D8AC00]/35'
+                                              : 'bg-[#FCEE0A] text-zinc-950 border-transparent ring-2 ring-[#FCEE0A]/45 shadow-[0_0_18px_rgba(252,238,10,0.24)]'
                                           : badge.type === 'frequency'
                                             ? isDark
                                                 ? 'bg-[#39FF14]/20 text-[#39FF14] border-[#39FF14]/35'
-                                                : 'bg-[#39FF14]/12 text-[#19A800] border-[#19A800]/28'
+                                                : 'bg-[#39FF14] text-zinc-950 border-transparent ring-2 ring-[#39FF14]/42 shadow-[0_0_18px_rgba(57,255,20,0.22)]'
                                             : isDark
                                               ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
                                               : 'bg-zinc-100 text-zinc-600 border-zinc-200';

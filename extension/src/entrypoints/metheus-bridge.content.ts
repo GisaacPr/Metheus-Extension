@@ -411,15 +411,10 @@ export default defineContentScript({
                                     ? backgroundResponse.translated
                                     : null,
                             provider:
-                                typeof backgroundResponse?.provider === 'string'
-                                    ? backgroundResponse.provider
-                                    : 'none',
+                                typeof backgroundResponse?.provider === 'string' ? backgroundResponse.provider : 'none',
                             sourceLang,
                             targetLang,
-                            error:
-                                typeof backgroundResponse?.error === 'string'
-                                    ? backgroundResponse.error
-                                    : undefined,
+                            error: typeof backgroundResponse?.error === 'string' ? backgroundResponse.error : undefined,
                         },
                         window.location.origin
                     );

@@ -15,11 +15,7 @@ const extractGtxTranslatedText = (payload: any): string | null => {
     return translated || null;
 };
 
-export const translateViaGtx = async (
-    text: string,
-    sourceLang: string,
-    targetLang: string
-): Promise<string | null> => {
+export const translateViaGtx = async (text: string, sourceLang: string, targetLang: string): Promise<string | null> => {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(
         sourceLang
     )}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
@@ -41,10 +37,7 @@ export const translateViaGtx = async (
     }
 };
 
-export const translateWithBrowserApi = async (
-    text: string,
-    targetLang: string
-): Promise<string | null> => {
+export const translateWithBrowserApi = async (text: string, targetLang: string): Promise<string | null> => {
     if (typeof window === 'undefined') {
         return null;
     }
@@ -70,11 +63,7 @@ export const translateWithBrowserApi = async (
     }
 };
 
-export const resolveIdentityTranslation = (
-    text: string,
-    sourceLang: string,
-    targetLang: string
-): string | null => {
+export const resolveIdentityTranslation = (text: string, sourceLang: string, targetLang: string): string | null => {
     const normalizedText = text.trim();
     const normalizedSource = (sourceLang || 'auto').trim().toLowerCase();
     const normalizedTarget = (targetLang || '').trim().toLowerCase();

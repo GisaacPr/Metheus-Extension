@@ -18,6 +18,126 @@ const STATUS = {
     KNOWN: 5,
 };
 
+const sanitizeText = (value?: string | null) =>
+    (value || '')
+        .replace(/<\/?c[^>]*>/gi, '')
+        .replace(/\[(?:\/)?c\]/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const sanitizeMultiline = (value?: string | null) =>
+    (value || '')
+        .split('\n')
+        .map((line) => sanitizeText(line))
+        .filter((line) => line.length > 0)
+        .join('\n');
+
+const normalizeMeaningKey = (value?: string | null) =>
+    sanitizeMultiline(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[“”"']/g, '')
+        .trim();
+
+const normalizeExampleKey = (value?: string | null) =>
+    sanitizeText(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const isNoiseDefinition = (meaning?: string | null) => {
+    const normalized = normalizeMeaningKey(meaning || '');
+    if (!normalized) return true;
+    if (/^\d+\s+no definition text(?:\s+sin texto de definición)?$/i.test(normalized)) return true;
+    if (normalized === 'no definition text') return true;
+    if (normalized === 'sin texto de definición') return true;
+    if (normalized === 'undefined') return true;
+    return false;
+};
+
+const mergeDefinitionLists = (
+    primary: UnifiedEntry['definitions'],
+    secondary: UnifiedEntry['definitions']
+): UnifiedEntry['definitions'] => {
+    const merged: UnifiedEntry['definitions'] = [];
+    const byMeaning = new Map<string, number>();
+
+    const mergeInto = (def: UnifiedEntry['definitions'][number]) => {
+        if (!def) return;
+        if (isNoiseDefinition(def.meaning)) return;
+
+        const normalized = normalizeMeaningKey(def.meaning);
+        if (!normalized) return;
+
+        const normalizedExamples = (def.examples || []).filter((example) => {
+            const key = normalizeExampleKey(example.sentence);
+            return key.length > 0;
+        });
+
+        const existingIndex = byMeaning.get(normalized);
+        if (existingIndex === undefined) {
+            byMeaning.set(normalized, merged.length);
+            merged.push({
+                ...def,
+                meaning: sanitizeMultiline(def.meaning),
+                examples: normalizedExamples,
+                synonyms: Array.from(new Set((def.synonyms || []).filter(Boolean))),
+                antonyms: Array.from(new Set((def.antonyms || []).filter(Boolean))),
+                index: merged.length + 1,
+            });
+            return;
+        }
+
+        const existing = merged[existingIndex];
+        const existingExampleKeys = new Set(
+            (existing.examples || []).map((example) => normalizeExampleKey(example.sentence)).filter(Boolean)
+        );
+        const extraExamples = normalizedExamples.filter(
+            (example) => !existingExampleKeys.has(normalizeExampleKey(example.sentence))
+        );
+
+        merged[existingIndex] = {
+            ...existing,
+            context: existing.context || def.context,
+            synonyms: Array.from(new Set([...(existing.synonyms || []), ...(def.synonyms || [])].filter(Boolean))),
+            antonyms: Array.from(new Set([...(existing.antonyms || []), ...(def.antonyms || [])].filter(Boolean))),
+            examples: [...(existing.examples || []), ...extraExamples],
+        };
+    };
+
+    (primary || []).forEach(mergeInto);
+    (secondary || []).forEach(mergeInto);
+
+    return merged.map((def, idx) => ({
+        ...def,
+        index: idx + 1,
+    }));
+};
+
+const sanitizeEntryDefinitions = (candidate: UnifiedEntry | null): UnifiedEntry | null => {
+    if (!candidate) {
+        return null;
+    }
+
+    const normalizedDefinitions = mergeDefinitionLists(candidate.definitions || [], []);
+    const hasRenderableMetadata =
+        (candidate.linguisticData?.length ?? 0) > 0 ||
+        (candidate.badges?.length ?? 0) > 0 ||
+        (candidate.translations?.length ?? 0) > 0 ||
+        !!candidate.phonetic ||
+        !!candidate.audio;
+
+    if (normalizedDefinitions.length === 0 && !hasRenderableMetadata) {
+        return null;
+    }
+
+    return {
+        ...candidate,
+        definitions: normalizedDefinitions,
+    };
+};
+
 interface DictionaryPopupProps {
     word: string;
     context?: string; // Sentence
@@ -82,126 +202,6 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     onGetWordStatus,
     variant = 'popup',
 }) => {
-    const sanitizeText = (value?: string | null) =>
-        (value || '')
-            .replace(/<\/?c[^>]*>/gi, '')
-            .replace(/\[(?:\/)?c\]/gi, '')
-            .replace(/<[^>]*>/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-    const sanitizeMultiline = (value?: string | null) =>
-        (value || '')
-            .split('\n')
-            .map((line) => sanitizeText(line))
-            .filter((line) => line.length > 0)
-            .join('\n');
-
-    const normalizeMeaningKey = (value?: string | null) =>
-        sanitizeMultiline(value || '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .replace(/[“”"']/g, '')
-            .trim();
-
-    const normalizeExampleKey = (value?: string | null) =>
-        sanitizeText(value || '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .trim();
-
-    const isNoiseDefinition = (meaning?: string | null) => {
-        const normalized = normalizeMeaningKey(meaning || '');
-        if (!normalized) return true;
-        if (/^\d+\s+no definition text(?:\s+sin texto de definición)?$/i.test(normalized)) return true;
-        if (normalized === 'no definition text') return true;
-        if (normalized === 'sin texto de definición') return true;
-        if (normalized === 'undefined') return true;
-        return false;
-    };
-
-    const mergeDefinitionLists = (
-        primary: UnifiedEntry['definitions'],
-        secondary: UnifiedEntry['definitions']
-    ): UnifiedEntry['definitions'] => {
-        const merged: UnifiedEntry['definitions'] = [];
-        const byMeaning = new Map<string, number>();
-
-        const mergeInto = (def: UnifiedEntry['definitions'][number]) => {
-            if (!def) return;
-            if (isNoiseDefinition(def.meaning)) return;
-
-            const normalized = normalizeMeaningKey(def.meaning);
-            if (!normalized) return;
-
-            const normalizedExamples = (def.examples || []).filter((example) => {
-                const key = normalizeExampleKey(example.sentence);
-                return key.length > 0;
-            });
-
-            const existingIndex = byMeaning.get(normalized);
-            if (existingIndex === undefined) {
-                byMeaning.set(normalized, merged.length);
-                merged.push({
-                    ...def,
-                    meaning: sanitizeMultiline(def.meaning),
-                    examples: normalizedExamples,
-                    synonyms: Array.from(new Set((def.synonyms || []).filter(Boolean))),
-                    antonyms: Array.from(new Set((def.antonyms || []).filter(Boolean))),
-                    index: merged.length + 1,
-                });
-                return;
-            }
-
-            const existing = merged[existingIndex];
-            const existingExampleKeys = new Set(
-                (existing.examples || []).map((example) => normalizeExampleKey(example.sentence)).filter(Boolean)
-            );
-            const extraExamples = normalizedExamples.filter(
-                (example) => !existingExampleKeys.has(normalizeExampleKey(example.sentence))
-            );
-
-            merged[existingIndex] = {
-                ...existing,
-                context: existing.context || def.context,
-                synonyms: Array.from(new Set([...(existing.synonyms || []), ...(def.synonyms || [])].filter(Boolean))),
-                antonyms: Array.from(new Set([...(existing.antonyms || []), ...(def.antonyms || [])].filter(Boolean))),
-                examples: [...(existing.examples || []), ...extraExamples],
-            };
-        };
-
-        (primary || []).forEach(mergeInto);
-        (secondary || []).forEach(mergeInto);
-
-        return merged.map((def, idx) => ({
-            ...def,
-            index: idx + 1,
-        }));
-    };
-
-    const sanitizeEntryDefinitions = (candidate: UnifiedEntry | null): UnifiedEntry | null => {
-        if (!candidate) {
-            return null;
-        }
-
-        const normalizedDefinitions = mergeDefinitionLists(candidate.definitions || [], []);
-        const hasRenderableMetadata =
-            (candidate.linguisticData?.length ?? 0) > 0 ||
-            (candidate.badges?.length ?? 0) > 0 ||
-            (candidate.translations?.length ?? 0) > 0 ||
-            !!candidate.phonetic ||
-            !!candidate.audio;
-
-        if (normalizedDefinitions.length === 0 && !hasRenderableMetadata) {
-            return null;
-        }
-
-        return {
-            ...candidate,
-            definitions: normalizedDefinitions,
-        };
-    };
-
     const [entry, setEntry] = useState<UnifiedEntry | null>(null);
     const [requestedWord, setRequestedWord] = useState<string>(word);
     const [loading, setLoading] = useState(false);
@@ -365,7 +365,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                     setLoading(false);
                 });
         }
-    }, [word, isOpen, onGetDefinition, onGetWordStatus, onOnlineEnrich]);
+    }, [word, isOpen, contextLanguage, onGetDefinition, onGetWordStatus, onOnlineEnrich]);
 
     // Close existing TTS/etc when closing
     const handleClose = () => {
