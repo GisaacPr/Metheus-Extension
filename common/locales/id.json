@@ -236,7 +236,7 @@
             "selectSubtitles": "Pilih Takarir",
             "subtitleTrack": "Trek Takarir",
             "videoName": "Nama Video",
-            "ftue": "Trek takarir yang terdeteksi otomatis dapat dipilih di sini. asbplayer tidak dapat mendeteksi takarir di semua situs. Anda selalu dapat memuat berkas takarir sendiri."
+            "ftue": "Trek takarir yang terdeteksi otomatis dapat dipilih di sini. Metheus tidak dapat mendeteksi takarir di semua situs. Anda selalu dapat memuat berkas takarir sendiri."
         },
         "videoSelect": {
             "multipleVideoElements": "Beberapa elemen video terdeteksi",
@@ -580,3 +580,4 @@
         "close": "Tutup"
     }
 }
+

@@ -134,22 +134,55 @@ const Popup = ({
 
     useEffect(() => {
         const checkStatus = async () => {
-            const status: Record<string, boolean> = {};
+            const installed: Record<string, boolean> = {};
+            const downloading: Record<string, number> = {};
             const langs = Object.keys(SUPPORTED_LANGUAGES);
 
             for (const lang of langs) {
                 try {
-                    status[lang] = await dictionaryService.isLanguageDownloaded(lang);
+                    const state = await dictionaryService.getLanguageStatus(lang);
+                    installed[lang] = state.isDownloaded;
+                    if (state.isDownloading) {
+                        downloading[lang] = state.progress;
+                    }
                 } catch (e) {
                     console.error(`Failed to check status for ${lang}`, e);
-                    status[lang] = false;
+                    installed[lang] = false;
                 }
             }
-            setInstalledDictionaries(status);
+            setInstalledDictionaries(installed);
+            setDownloadingDictionaries(downloading);
         };
 
         checkStatus();
     }, [dictionaryService]);
+
+    useEffect(() => {
+        const listener = (message: any) => {
+            if (message?.type !== 'METHEUS_DICTIONARY_DOWNLOAD_PROGRESS' || !message.language) {
+                return;
+            }
+
+            const lang = String(message.language);
+            const progress = typeof message.progress === 'number' ? Math.round(message.progress) : 0;
+            const isDownloading = !!message.isDownloading;
+            const isDownloaded = !!message.isDownloaded || progress >= 100;
+
+            setInstalledDictionaries((prev) => ({ ...prev, [lang]: isDownloaded }));
+            setDownloadingDictionaries((prev) => {
+                const next = { ...prev };
+                if (isDownloading) {
+                    next[lang] = Math.max(0, Math.min(100, progress));
+                } else {
+                    delete next[lang];
+                }
+                return next;
+            });
+        };
+
+        browser.runtime.onMessage.addListener(listener);
+        return () => browser.runtime.onMessage.removeListener(listener);
+    }, []);
 
     const handleManageDictionary = useCallback(
         async (langCode: string) => {
@@ -160,23 +193,29 @@ const Popup = ({
 
             try {
                 setDownloadingDictionaries((prev) => ({ ...prev, [langCode]: 0 }));
-
-                await dictionaryService.downloadLanguage(langCode, (progress) => {
-                    setDownloadingDictionaries((prev) => ({ ...prev, [langCode]: Math.round(progress) }));
-                });
-
-                setInstalledDictionaries((prev) => ({ ...prev, [langCode]: true }));
+                await dictionaryService.downloadLanguage(langCode);
             } catch (error) {
                 console.error(`Failed to download dictionary for ${langCode}`, error);
-            } finally {
-                setDownloadingDictionaries((prev) => {
-                    const copy = { ...prev };
-                    delete copy[langCode];
-                    return copy;
-                });
             }
         },
         [downloadingDictionaries, installedDictionaries, dictionaryService]
+    );
+
+    const handleDeleteDictionary = useCallback(
+        async (langCode: string) => {
+            try {
+                await dictionaryService.deleteLanguage(langCode);
+                setInstalledDictionaries((prev) => ({ ...prev, [langCode]: false }));
+                setDownloadingDictionaries((prev) => {
+                    const next = { ...prev };
+                    delete next[langCode];
+                    return next;
+                });
+            } catch (error) {
+                console.error(`Failed to delete dictionary for ${langCode}`, error);
+            }
+        },
+        [dictionaryService]
     );
 
     if (!i18nInitialized) {
@@ -240,6 +279,7 @@ const Popup = ({
                         installedDictionaries={installedDictionaries}
                         downloadingDictionaries={downloadingDictionaries}
                         onManageDictionary={handleManageDictionary}
+                        onDeleteDictionary={handleDeleteDictionary}
                         pendingSyncCount={pendingSyncCount}
                         knownWordCounts={knownWordCounts}
                         decks={decks}

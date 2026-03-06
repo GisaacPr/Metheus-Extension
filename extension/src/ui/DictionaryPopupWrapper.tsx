@@ -150,7 +150,7 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
             for (const lang of langOrder) {
                 try {
                     console.log(`[PopupWrapper] Looking up '${text}' in language '${lang}'`);
-                    const r = await dictionaryService.lookup(text, lang);
+                    const r = await dictionaryService.lookup(text, lang, undefined, { skipBlockingOnline: true });
                     console.log(
                         `[PopupWrapper] Result for '${text}' in '${lang}': found=${r.found}, entries=${r.allEntries?.length || (r.found ? 1 : 0)}`
                     );

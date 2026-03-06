@@ -14,10 +14,11 @@ import FormLabel from '@mui/material/FormLabel';
 import CircularProgress from '@mui/material/CircularProgress';
 import { Flag } from '@metheus/common/components/Flag';
 import { useTranslation } from 'react-i18next';
-import { supportedLanguages as SUPPORTED_LANG_CODES } from '@metheus/common/settings';
+import { SUPPORTED_LANGUAGES as LN_SUPPORTED_LANGUAGES } from '../../services/metheus-dictionary';
 
+const TARGET_LANGUAGE_CODES = Object.keys(LN_SUPPORTED_LANGUAGES) as string[];
 const getSupportedLanguages = (i18nLang: string) =>
-    SUPPORTED_LANG_CODES.map((code: string) => ({
+    TARGET_LANGUAGE_CODES.map((code: string) => ({
         code,
         name:
             new Intl.DisplayNames([i18nLang], { type: 'language' }).of(
@@ -209,7 +210,13 @@ const GeneralSettingsPanel: React.FC<Props> = ({
     };
 
     const handleTargetLanguageChange = (event: SelectChangeEvent<string>) => {
-        onSettingsChanged({ metheusTargetLanguage: event.target.value });
+        const newLang = event.target.value;
+        onSettingsChanged({ metheusTargetLanguage: newLang });
+
+        // Match popup behavior: when user sets a target language, auto-download if missing.
+        if (onManageDictionary && !installedDictionaries[newLang] && downloadingDictionaries[newLang] === undefined) {
+            onManageDictionary(newLang);
+        }
     };
 
     const handleDeckIdChange = (event: SelectChangeEvent<string>) => {
@@ -420,7 +427,7 @@ const GeneralSettingsPanel: React.FC<Props> = ({
                         displayEmpty
                     >
                         <MenuItem value="">
-                            <em>{t('settings.defaultDeckLabel', { defaultValue: 'Default Deck' })}</em>
+                            <em>{t('settings.newDeckLabel', { defaultValue: 'New Deck' })}</em>
                         </MenuItem>
                         {decks.map((deck) => (
                             <MenuItem key={deck.id} value={deck.id}>
@@ -436,7 +443,7 @@ const GeneralSettingsPanel: React.FC<Props> = ({
                         fullWidth
                         size="small"
                         helperText={t('settings.leaveEmptyForDefault', {
-                            defaultValue: 'Leave empty to use default deck',
+                            defaultValue: 'Leave empty to auto-create/use New Deck',
                         })}
                     />
                 )}

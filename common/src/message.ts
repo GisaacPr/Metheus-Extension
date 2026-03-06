@@ -786,6 +786,9 @@ export interface DictionaryGetStatusMessage extends MessageWithId {
 
 export interface DictionaryStatusResponse {
     isDownloaded: boolean;
+    isDownloading?: boolean;
+    progress?: number;
+    status?: string;
 }
 
 export interface DictionaryOnlineEnrichMessage extends MessageWithId {

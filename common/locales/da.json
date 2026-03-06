@@ -236,7 +236,7 @@
             "selectSubtitles": "Select Subtitles",
             "subtitleTrack": "Subtitle Track",
             "videoName": "Video Name",
-            "ftue": "Auto-detected subtitle tracks can be selected here. asbplayer does not know how to detect subtitles on every site. You can always load your own subtitle files."
+            "ftue": "Auto-detected subtitle tracks can be selected here. Metheus does not know how to detect subtitles on every site. You can always load your own subtitle files."
         },
         "videoSelect": {
             "multipleVideoElements": "Multiple Video Elements Detected",
@@ -580,3 +580,4 @@
         "close": "Luk"
     }
 }
+

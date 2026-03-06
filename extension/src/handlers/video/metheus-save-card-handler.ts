@@ -127,7 +127,7 @@ export default class MetheusSaveCardHandler {
                         imageUrl: data.imageUrl || '',
                         frontAudioUrl: data.audioUrl || '',
                     },
-                    deckId: data.deckId || metheusTargetDeckId || 'default',
+                    deckId: data.deckId || metheusTargetDeckId || '',
                     noteTypeId: data.noteTypeId || metheusNoteType || 'STANDARD',
                     targetLanguage: data.language || 'en',
                     createdAt: data.timestamp || Date.now(),

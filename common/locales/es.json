@@ -236,7 +236,7 @@
             "selectSubtitles": "Seleccionar subtítulos",
             "subtitleTrack": "Pista de subtítulos",
             "videoName": "Nombre del vídeo",
-            "ftue": "Las pistas detectadas automáticamente pueden seleccionarse aquí. asbplayer no siempre sabe detectarlas. Siempre puedes cargar tus propios archivos."
+            "ftue": "Las pistas detectadas automáticamente pueden seleccionarse aquí. Metheus no siempre sabe detectarlas. Siempre puedes cargar tus propios archivos."
         },
         "videoSelect": {
             "multipleVideoElements": "Varios elementos de vídeo detectados",
@@ -572,3 +572,4 @@
         "close": "Cerrar"
     }
 }
+

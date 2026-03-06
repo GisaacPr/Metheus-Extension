@@ -42,13 +42,11 @@ export const DictionaryMetadata: React.FC<DictionaryMetadataProps> = ({ data, th
                         </span>
                         <span
                             className={cn(
-                                'text-[18px] font-medium break-words leading-relaxed',
+                                'text-[18px] font-medium break-words leading-relaxed whitespace-pre-wrap',
                                 isDark ? 'text-zinc-100' : 'text-zinc-900'
                             )}
                         >
-                            {typeof value === 'string' && value.length > 200
-                                ? `${value.substring(0, 200)}...`
-                                : value?.toString()}
+                            {value?.toString()}
                         </span>
                     </div>
                 ))}

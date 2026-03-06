@@ -4,6 +4,7 @@ import Dexie, { Table } from 'dexie';
 export interface DictionaryChunk {
     id: string; // e.g. "en_A", "ja_1"
     language: string; // e.g. "en"
+    sourceDictionaryId: string; // e.g. "LN_en", "English_dictionary"
     chunkId: string; // e.g. "A", "1"
     version: number; // e.g. 1
     loadedAt: number; // timestamp
@@ -59,17 +60,32 @@ export class DictionaryDatabase extends Dexie {
             status: 'language',
             onlineCache: '++id, [lang+w], fetchedAt',
         });
+
+        // Version 3: Track sourceDictionaryId per chunk for reliable resume/skip per dictionary
+        this.version(3).stores({
+            chunks: 'id, language, sourceDictionaryId, chunkId, [language+sourceDictionaryId], [language+sourceDictionaryId+chunkId]',
+            entries: 'id, w, lang, [lang+w]',
+            status: 'language',
+            onlineCache: '++id, [lang+w], fetchedAt',
+        });
     }
 
     /**
      * Bulk add entries to the database
      */
-    async bucketImport(language: string, chunkId: string, version: number, entries: any[]): Promise<void> {
+    async bucketImport(
+        language: string,
+        chunkId: string,
+        version: number,
+        entries: any[],
+        sourceDictionaryId: string = 'default'
+    ): Promise<void> {
         await this.transaction('rw', this.chunks, this.entries, async () => {
             // 1. Register chunk
             await this.chunks.put({
-                id: `${language}_${chunkId}`,
+                id: `${language}_${sourceDictionaryId}_${chunkId}`,
                 language,
+                sourceDictionaryId,
                 chunkId,
                 version,
                 loadedAt: Date.now(),
@@ -77,8 +93,8 @@ export class DictionaryDatabase extends Dexie {
 
             // 2. Add entries
             // Remap optimized JSON entries to storage format
-            const storedEntries: StoredDictionaryEntry[] = entries.map((e) => ({
-                id: `${language}_${e.w}_${Math.random().toString(36).substr(2, 5)}`,
+            const storedEntries: StoredDictionaryEntry[] = entries.map((e, index) => ({
+                id: `${language}_${sourceDictionaryId}_${chunkId}_${index}`,
                 w: e.w,
                 lang: language,
                 d: e,
@@ -86,6 +102,14 @@ export class DictionaryDatabase extends Dexie {
 
             await this.entries.bulkPut(storedEntries);
         });
+    }
+
+    async getLoadedChunkIds(language: string, sourceDictionaryId: string): Promise<Set<string>> {
+        const chunks = await this.chunks
+            .where('[language+sourceDictionaryId]')
+            .equals([language, sourceDictionaryId])
+            .toArray();
+        return new Set(chunks.map((chunk) => chunk.chunkId));
     }
 
     /**
@@ -148,6 +172,10 @@ export class DictionaryDatabase extends Dexie {
     async isLanguageDownloaded(language: string): Promise<boolean> {
         const status = await this.status.get(language);
         return !!status?.isComplete;
+    }
+
+    async getLanguageStatus(language: string): Promise<DictionaryStatus | undefined> {
+        return this.status.get(language);
     }
 
     /**

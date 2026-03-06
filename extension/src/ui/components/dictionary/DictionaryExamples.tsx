@@ -84,6 +84,7 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                     const exampleText = example.sentence;
                     const isSpeaking = speakingExample === exampleText;
                     const grammar = example.grammarNote;
+                    const exampleTranslation = example.translation || translatedExamples[exampleText];
 
                     return (
                         <div
@@ -131,14 +132,14 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                                 )}
                             </div>
 
-                            {translatedExamples[exampleText] && (
+                            {exampleTranslation && (
                                 <p
                                     className={cn(
-                                        'text-[16px] mt-1 pl-1 italic border-l-2 border-[#00F0FF]/35',
-                                        isDark ? 'text-zinc-400' : 'text-zinc-600'
+                                        'text-[16px] mt-1 pl-1 border-l-2 border-[#00F0FF]/45 font-medium',
+                                        isDark ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
                                     )}
                                 >
-                                    {translatedExamples[exampleText]}
+                                    {exampleTranslation}
                                 </p>
                             )}
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen, Check, Search, Sparkles, Brain, Loader2 } from 'lucide-react';
+import { X, BookOpen, Check, Search, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '../utils';
 import { UnifiedEntry } from '../dictionary-adapter';
 import { useTranslation, useTTS, useGoogleTranslation } from '../hooks';
@@ -82,6 +82,126 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     onGetWordStatus,
     variant = 'popup',
 }) => {
+    const sanitizeText = (value?: string | null) =>
+        (value || '')
+            .replace(/<\/?c[^>]*>/gi, '')
+            .replace(/\[(?:\/)?c\]/gi, '')
+            .replace(/<[^>]*>/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const sanitizeMultiline = (value?: string | null) =>
+        (value || '')
+            .split('\n')
+            .map((line) => sanitizeText(line))
+            .filter((line) => line.length > 0)
+            .join('\n');
+
+    const normalizeMeaningKey = (value?: string | null) =>
+        sanitizeMultiline(value || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/[“”"']/g, '')
+            .trim();
+
+    const normalizeExampleKey = (value?: string | null) =>
+        sanitizeText(value || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+    const isNoiseDefinition = (meaning?: string | null) => {
+        const normalized = normalizeMeaningKey(meaning || '');
+        if (!normalized) return true;
+        if (/^\d+\s+no definition text(?:\s+sin texto de definición)?$/i.test(normalized)) return true;
+        if (normalized === 'no definition text') return true;
+        if (normalized === 'sin texto de definición') return true;
+        if (normalized === 'undefined') return true;
+        return false;
+    };
+
+    const mergeDefinitionLists = (
+        primary: UnifiedEntry['definitions'],
+        secondary: UnifiedEntry['definitions']
+    ): UnifiedEntry['definitions'] => {
+        const merged: UnifiedEntry['definitions'] = [];
+        const byMeaning = new Map<string, number>();
+
+        const mergeInto = (def: UnifiedEntry['definitions'][number]) => {
+            if (!def) return;
+            if (isNoiseDefinition(def.meaning)) return;
+
+            const normalized = normalizeMeaningKey(def.meaning);
+            if (!normalized) return;
+
+            const normalizedExamples = (def.examples || []).filter((example) => {
+                const key = normalizeExampleKey(example.sentence);
+                return key.length > 0;
+            });
+
+            const existingIndex = byMeaning.get(normalized);
+            if (existingIndex === undefined) {
+                byMeaning.set(normalized, merged.length);
+                merged.push({
+                    ...def,
+                    meaning: sanitizeMultiline(def.meaning),
+                    examples: normalizedExamples,
+                    synonyms: Array.from(new Set((def.synonyms || []).filter(Boolean))),
+                    antonyms: Array.from(new Set((def.antonyms || []).filter(Boolean))),
+                    index: merged.length + 1,
+                });
+                return;
+            }
+
+            const existing = merged[existingIndex];
+            const existingExampleKeys = new Set(
+                (existing.examples || []).map((example) => normalizeExampleKey(example.sentence)).filter(Boolean)
+            );
+            const extraExamples = normalizedExamples.filter(
+                (example) => !existingExampleKeys.has(normalizeExampleKey(example.sentence))
+            );
+
+            merged[existingIndex] = {
+                ...existing,
+                context: existing.context || def.context,
+                synonyms: Array.from(new Set([...(existing.synonyms || []), ...(def.synonyms || [])].filter(Boolean))),
+                antonyms: Array.from(new Set([...(existing.antonyms || []), ...(def.antonyms || [])].filter(Boolean))),
+                examples: [...(existing.examples || []), ...extraExamples],
+            };
+        };
+
+        (primary || []).forEach(mergeInto);
+        (secondary || []).forEach(mergeInto);
+
+        return merged.map((def, idx) => ({
+            ...def,
+            index: idx + 1,
+        }));
+    };
+
+    const sanitizeEntryDefinitions = (candidate: UnifiedEntry | null): UnifiedEntry | null => {
+        if (!candidate) {
+            return null;
+        }
+
+        const normalizedDefinitions = mergeDefinitionLists(candidate.definitions || [], []);
+        const hasRenderableMetadata =
+            (candidate.linguisticData?.length ?? 0) > 0 ||
+            (candidate.badges?.length ?? 0) > 0 ||
+            (candidate.translations?.length ?? 0) > 0 ||
+            !!candidate.phonetic ||
+            !!candidate.audio;
+
+        if (normalizedDefinitions.length === 0 && !hasRenderableMetadata) {
+            return null;
+        }
+
+        return {
+            ...candidate,
+            definitions: normalizedDefinitions,
+        };
+    };
+
     const [entry, setEntry] = useState<UnifiedEntry | null>(null);
     const [requestedWord, setRequestedWord] = useState<string>(word);
     const [loading, setLoading] = useState(false);
@@ -91,6 +211,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     const [isCapturing, setIsCapturing] = useState(false);
     const [isEnriching, setIsEnriching] = useState(false);
     const [selectedDefinitionIndex, setSelectedDefinitionIndex] = useState<number | undefined>(undefined);
+    const [hoveredDefinitionIndex, setHoveredDefinitionIndex] = useState<number | undefined>(undefined);
     const [showLearningLevels, setShowLearningLevels] = useState(false);
     const [contextTranslation, setContextTranslation] = useState<string | null>(null);
 
@@ -103,6 +224,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     useEffect(() => {
         setContextTranslation(null);
         setSavedCardId(null);
+        setSelectedDefinitionIndex(undefined);
+        setHoveredDefinitionIndex(undefined);
     }, [word, context]);
 
     useEffect(() => {
@@ -153,49 +276,79 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
             // Parallel fetch: definition + status
             Promise.all([onGetDefinition(word), onGetWordStatus(word)])
                 .then(([fetchedEntry, fetchedStatus]) => {
-                    setEntry(fetchedEntry);
+                    setEntry(sanitizeEntryDefinitions(fetchedEntry));
                     setStatus(fetchedStatus || 0);
 
                     // Fire streaming online enrichment in parallel (non-blocking).
                     // Each provider's results are delivered via onBatch as they arrive.
                     if (onOnlineEnrich) {
-                        const entryLang = fetchedEntry?.language || 'en';
+                        const entryLang = fetchedEntry?.language || contextLanguage || 'en';
                         setIsEnriching(true);
 
                         const mergeOnlineBatch = (batch: UnifiedEntry) => {
                             setEntry((prev) => {
-                                if (!prev) return batch;
-                                // Merge: keep existing definitions, add new unique ones
-                                const existingMeanings = new Set(
-                                    prev.definitions.map((d) => d.meaning.toLowerCase().trim())
+                                const cleanBatch = sanitizeEntryDefinitions(batch);
+                                if (!cleanBatch) {
+                                    return prev;
+                                }
+                                if (!prev) {
+                                    return cleanBatch;
+                                }
+
+                                const mergedDefinitions = mergeDefinitionLists(
+                                    prev.definitions || [],
+                                    cleanBatch.definitions || []
                                 );
-                                const newDefs = batch.definitions.filter(
-                                    (d) => d.meaning.trim() && !existingMeanings.has(d.meaning.toLowerCase().trim())
+
+                                const mergedLinguistic = [...(prev.linguisticData || [])];
+                                const seenLinguisticRows = new Set(
+                                    mergedLinguistic.map(
+                                        (item) =>
+                                            `${sanitizeText(item.key || item.label).toLowerCase()}::${sanitizeMultiline(
+                                                `${item.value}`
+                                            ).toLowerCase()}`
+                                    )
                                 );
-                                const mergedDefs = [
-                                    ...prev.definitions,
-                                    ...newDefs.map((d, i) => ({ ...d, index: prev.definitions.length + i + 1 })),
-                                ];
+
+                                for (const item of cleanBatch.linguisticData || []) {
+                                    const rowKey = `${sanitizeText(item.key || item.label).toLowerCase()}::${sanitizeMultiline(
+                                        `${item.value}`
+                                    ).toLowerCase()}`;
+                                    if (!seenLinguisticRows.has(rowKey)) {
+                                        seenLinguisticRows.add(rowKey);
+                                        mergedLinguistic.push(item);
+                                    }
+                                }
+
+                                const mergedBadges = [...(prev.badges || [])];
+                                for (const badge of cleanBatch.badges || []) {
+                                    const exists = mergedBadges.some(
+                                        (existing) =>
+                                            existing.type === badge.type &&
+                                            sanitizeText(existing.label).toLowerCase() ===
+                                                sanitizeText(badge.label).toLowerCase()
+                                    );
+                                    if (!exists) {
+                                        mergedBadges.push(badge);
+                                    }
+                                }
+
+                                const mergedTranslations = Array.from(
+                                    new Set([...(prev.translations || []), ...(cleanBatch.translations || [])])
+                                ).filter(
+                                    (value): value is string => typeof value === 'string' && value.trim().length > 0
+                                );
+
                                 return {
                                     ...prev,
-                                    definitions: mergedDefs,
+                                    definitions: mergedDefinitions,
                                     // Fill gaps: audio, phonetic, translations
-                                    audio: prev.audio || batch.audio,
-                                    phonetic: prev.phonetic || batch.phonetic,
-                                    phoneticLabel: prev.phoneticLabel || batch.phoneticLabel,
-                                    translations: prev.translations || batch.translations,
-                                    linguisticData: [
-                                        ...prev.linguisticData,
-                                        ...batch.linguisticData.filter(
-                                            (item) => !prev.linguisticData.some((l) => l.key === item.key)
-                                        ),
-                                    ],
-                                    badges: [
-                                        ...prev.badges,
-                                        ...batch.badges.filter(
-                                            (b) => !prev.badges.some((pb) => pb.type === b.type && pb.label === b.label)
-                                        ),
-                                    ],
+                                    audio: prev.audio || cleanBatch.audio,
+                                    phonetic: prev.phonetic || cleanBatch.phonetic,
+                                    phoneticLabel: prev.phoneticLabel || cleanBatch.phoneticLabel,
+                                    translations: mergedTranslations.length > 0 ? mergedTranslations : undefined,
+                                    linguisticData: mergedLinguistic,
+                                    badges: mergedBadges,
                                 };
                             });
                         };
@@ -616,6 +769,141 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
         pointerEvents: 'auto',
     };
 
+    const detailsData = useMemo(() => {
+        if (!entry) {
+            return [];
+        }
+
+        const normalizedCore = (entry.linguisticData || [])
+            .filter((item) => item && item.value !== undefined && item.value !== null)
+            .map((item) => ({
+                label: sanitizeText(item.label),
+                value: sanitizeMultiline(String(item.value)),
+                key: sanitizeText(item.key || item.label).toLowerCase(),
+            }))
+            .filter((item) => item.label.length > 0 && item.value.length > 0);
+
+        const seenRowKeys = new Set<string>();
+        const coreRows = normalizedCore.filter((item) => {
+            const rowKey = `${item.key}::${item.value.toLowerCase()}`;
+            if (seenRowKeys.has(rowKey)) {
+                return false;
+            }
+            seenRowKeys.add(rowKey);
+            return true;
+        });
+
+        const synonyms = Array.from(
+            new Set(
+                entry.definitions
+                    .flatMap((definition) => definition.synonyms || [])
+                    .map((value) => sanitizeText(value))
+                    .filter(Boolean)
+            )
+        );
+        const antonyms = Array.from(
+            new Set(
+                entry.definitions
+                    .flatMap((definition) => definition.antonyms || [])
+                    .map((value) => sanitizeText(value))
+                    .filter(Boolean)
+            )
+        );
+
+        const fallbackRows = [
+            ...(entry.translations && entry.translations.length > 1
+                ? [
+                      {
+                          label: 'Alt Translations',
+                          value: entry.translations.slice(0, 8).join(', '),
+                          key: 'fallback-alt-translations',
+                      },
+                  ]
+                : []),
+            ...(synonyms.length > 0
+                ? [
+                      {
+                          label: 'Synonyms',
+                          value: synonyms.slice(0, 20).join(', '),
+                          key: 'fallback-synonyms',
+                      },
+                  ]
+                : []),
+            ...(antonyms.length > 0
+                ? [
+                      {
+                          label: 'Antonyms',
+                          value: antonyms.slice(0, 12).join(', '),
+                          key: 'fallback-antonyms',
+                      },
+                  ]
+                : []),
+        ];
+
+        for (const row of fallbackRows) {
+            const rowKey = `${row.key}::${String(row.value).toLowerCase()}`;
+            if (!seenRowKeys.has(rowKey)) {
+                seenRowKeys.add(rowKey);
+                coreRows.push(row);
+            }
+        }
+
+        return coreRows;
+    }, [entry]);
+
+    const resolvedBadges = useMemo(() => {
+        if (!entry) {
+            return [];
+        }
+
+        const output = [...(entry.badges || [])];
+        const hasLevel = output.some((badge) => badge.type === 'level');
+        const hasFrequency = output.some((badge) => badge.type === 'frequency');
+        const hasPos = output.some((badge) => badge.type === 'pos');
+
+        const findValue = (...keys: string[]) => {
+            const match = (entry.linguisticData || []).find((item) =>
+                keys.includes(sanitizeText(item.key || item.label).toLowerCase())
+            );
+            return match?.value;
+        };
+
+        if (!hasPos) {
+            const posValue = findValue('part_of_speech', 'part of speech', 'pos');
+            if (posValue) {
+                output.unshift({ type: 'pos', label: String(posValue) });
+            }
+        }
+
+        if (!hasLevel) {
+            const levelValue = findValue('cefr', 'level', 'cefr level');
+            if (levelValue) {
+                output.push({ type: 'level', label: String(levelValue) });
+            }
+        }
+
+        if (!hasFrequency) {
+            const frequencyValue = findValue('frequency', 'freq', 'word_rank', 'rank');
+            if (frequencyValue) {
+                const frequencyLabel =
+                    typeof frequencyValue === 'number' ? `Top ${frequencyValue}` : String(frequencyValue);
+                output.push({ type: 'frequency', label: frequencyLabel });
+            }
+        }
+
+        const seen = new Set<string>();
+        return output.filter((badge) => {
+            const label = sanitizeText(badge.label);
+            if (!label) return false;
+            const key = `${badge.type}:${label.toLowerCase()}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [entry]);
+
+    const saveIsHighlighted = selectedDefinitionIndex !== undefined || hoveredDefinitionIndex !== undefined;
+
     const StatusButton = ({ s, label, activeClass, inactiveClass, icon: Icon, isLearning }: any) => {
         const isActive = isLearning ? status >= 1 && status <= 3 : status === s;
         const isDark = themeType === 'dark';
@@ -775,12 +1063,13 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                             <DictionaryHeader
                                 word={entry.word || requestedWord}
                                 phonetic={entry.phonetic}
-                                badges={entry.badges}
+                                badges={resolvedBadges}
                                 onSpeak={() =>
                                     entry.audio ? playAudioUrl(entry.audio) : speak(entry.word || requestedWord)
                                 }
                                 isSpeaking={isSpeakingWord}
                                 translation={contextTranslation ?? null}
+                                status={status}
                                 themeType={themeType}
                             />
 
@@ -796,14 +1085,18 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         key={tab}
                                         onClick={() => setActiveTab(tab as any)}
                                         className={cn(
-                                            'flex-1 py-3 text-[16px] font-bold uppercase tracking-wider relative transition-colors',
+                                            'flex-1 py-3 text-[16px] uppercase tracking-wider relative transition-colors',
                                             activeTab === tab
-                                                ? themeType === 'dark'
-                                                    ? 'text-[#00F0FF]'
-                                                    : 'text-[#00C6D9]'
-                                                : themeType === 'dark'
-                                                  ? 'text-zinc-500 hover:text-zinc-200'
-                                                  : 'text-zinc-700 hover:text-zinc-900'
+                                                ? cn(
+                                                      'font-bold',
+                                                      themeType === 'dark' ? 'text-[#00F0FF]' : 'text-[#007A8A]'
+                                                  )
+                                                : cn(
+                                                      'font-medium',
+                                                      themeType === 'dark'
+                                                          ? 'text-zinc-500 hover:text-zinc-300'
+                                                          : 'text-zinc-400 hover:text-zinc-600'
+                                                  )
                                         )}
                                     >
                                         {t(`dictionary.popup.tabs.${tab}`)}
@@ -811,7 +1104,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                             <div
                                                 className={cn(
                                                     'absolute bottom-0 left-0 right-0 h-0.5',
-                                                    themeType === 'dark' ? 'bg-[#00F0FF]' : 'bg-[#00C6D9]'
+                                                    themeType === 'dark' ? 'bg-[#00F0FF]' : 'bg-[#007A8A]'
                                                 )}
                                             />
                                         )}
@@ -845,6 +1138,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         definitions={entry.definitions || []}
                                         selectedIndex={selectedDefinitionIndex}
                                         onSelectDefinition={setSelectedDefinitionIndex}
+                                        onHoverDefinition={setHoveredDefinitionIndex}
                                         themeType={themeType}
                                     />
                                 )}
@@ -858,7 +1152,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                     />
                                 )}
                                 {activeTab === 'details' && (
-                                    <DictionaryMetadata data={entry.linguisticData || []} themeType={themeType} />
+                                    <DictionaryMetadata data={detailsData} themeType={themeType} />
                                 )}
                             </div>
                         </>
@@ -924,14 +1218,22 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                         className={cn(
                             'flex-1 flex items-center justify-center rounded-2xl transition-all',
                             // Always compact: horizontal, no icon
-                            'flex-row gap-2 py-2 px-3 min-h-[44px]',
+                            'flex-row gap-2 py-2 px-3 min-h-[44px] border',
                             savedCardId
                                 ? themeType === 'dark'
-                                    ? 'bg-[#39FF14]/20 text-[#39FF14]'
-                                    : 'bg-[#39FF14]/20 text-zinc-900'
-                                : themeType === 'dark'
-                                  ? 'text-zinc-500 hover:bg-zinc-900'
-                                  : 'text-zinc-700 hover:bg-zinc-100'
+                                    ? 'bg-[#39FF14]/20 text-[#39FF14] border-[#39FF14]/45'
+                                    : 'bg-[#39FF14]/20 text-zinc-900 border-[#39FF14]/35'
+                                : saveIsHighlighted
+                                  ? themeType === 'dark'
+                                      ? 'bg-[#39FF14]/10 text-[#39FF14] border-[#39FF14]/40 hover:bg-[#39FF14]/20'
+                                      : 'bg-[#39FF14]/14 text-zinc-900 border-[#39FF14]/35 hover:bg-[#39FF14]/24'
+                                  : themeType === 'dark'
+                                    ? 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
+                                    : 'bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200',
+                            !savedCardId &&
+                                !isCapturing &&
+                                saveIsHighlighted &&
+                                'animate-[pulse_0.9s_ease-in-out_infinite] ring-2 ring-[#39FF14]/55'
                         )}
                     >
                         {/* No icon - always compact */}

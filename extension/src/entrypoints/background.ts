@@ -70,7 +70,9 @@ import DictionaryMessageHandler from '@/handlers/dictionary-message-handler';
 import MetheusTogglePopupHandler from '@/handlers/metheus/metheus-toggle-popup-handler';
 import MetheusShowPopupHandler from '@/handlers/metheus/metheus-show-popup-handler';
 import { getMetheusSyncService } from '@/services/metheus-sync';
+import { getMetheusDictionaryService } from '@/services/metheus-dictionary';
 import { getOnlineDictionaryService } from '@/services/online-dictionary';
+import { normalizeLangCode } from '@/services/language-utils';
 
 export default defineBackground(() => {
     if (!isFirefoxBuild) {
@@ -178,8 +180,40 @@ export default defineBackground(() => {
         }
     };
 
+    const normalizeDictionaryLanguage = (language?: string) => normalizeLangCode(language) ?? 'en';
+
+    const ensureDictionaryDownloadedForLanguage = async (language?: string, source: string = 'unknown') => {
+        const normalizedLanguage = normalizeDictionaryLanguage(language);
+
+        try {
+            const dictionaryService = getMetheusDictionaryService(settings);
+            const alreadyDownloaded = await dictionaryService.isLanguageDownloaded(normalizedLanguage);
+            if (alreadyDownloaded) {
+                return;
+            }
+
+            console.log(`[LN Dictionary] Auto-downloading '${normalizedLanguage}' (source: ${source})`);
+            await browser.runtime.sendMessage({
+                sender: 'metheus-client',
+                message: {
+                    command: 'dictionary-download',
+                    messageId: `auto-dict-${Date.now()}-${normalizedLanguage}`,
+                    language: normalizedLanguage,
+                },
+            });
+            console.log(`[LN Dictionary] Auto-download queued for '${normalizedLanguage}'`);
+        } catch (error) {
+            console.error(
+                `[LN Dictionary] Auto-download failed for '${normalizedLanguage}' (source: ${source})`,
+                error
+            );
+        }
+    };
+
     const startListener = async () => {
         primeLocalization(await settings.getSingle('language'));
+        const targetLanguage = await settings.getSingle('metheusTargetLanguage');
+        void ensureDictionaryDownloadedForLanguage(targetLanguage, 'startup');
     };
 
     // E-C4 FIX: Single unified onMessageExternal listener.
@@ -402,7 +436,7 @@ export default defineBackground(() => {
                     const lnSettings = await settings.get(['metheusTargetDeckId', 'metheusNoteType']);
                     const card = {
                         fields: payload.fields || {},
-                        deckId: payload.deckId || lnSettings.metheusTargetDeckId || 'default',
+                        deckId: payload.deckId || lnSettings.metheusTargetDeckId || '',
                         noteTypeId: payload.noteTypeId || lnSettings.metheusNoteType || 'STANDARD',
                         targetLanguage: payload.language || 'en',
                         createdAt: Date.now(),
@@ -496,6 +530,7 @@ export default defineBackground(() => {
                         targetLanguage: config.targetLanguage,
                         miningDeckId: config.miningDeckId,
                     });
+                    void ensureDictionaryDownloadedForLanguage(config.targetLanguage, 'bridge-config');
                     browser.runtime.sendMessage({ type: 'METHEUS_CONFIG_UPDATED' }).catch(() => undefined);
 
                     sendResponse({ success: true });
@@ -564,6 +599,9 @@ export default defineBackground(() => {
             primeLocalization(defaultUiLanguage);
         }
 
+        const targetLanguage = await settings.getSingle('metheusTargetLanguage');
+        void ensureDictionaryDownloadedForLanguage(targetLanguage, 'install');
+
         if (isMobile) {
             // Set reasonable defaults for mobile
             await settings.set({
@@ -616,6 +654,11 @@ export default defineBackground(() => {
                     changes.language?.newValue || cachedLanguageMeta?.ln_cached_interface_language || undefined,
                 nativeLanguage: cachedLanguageMeta?.ln_cached_native_language || undefined,
             };
+
+            if ('metheusTargetLanguage' in changes) {
+                const nextTargetLanguage = changes.metheusTargetLanguage?.newValue;
+                void ensureDictionaryDownloadedForLanguage(nextTargetLanguage, 'settings-change');
+            }
 
             await syncService.broadcastUpdate({ type: 'extension-settings-updated', settings: payload });
         })().catch((e) => console.error('[LN Background] Failed to broadcast extension settings update', e));

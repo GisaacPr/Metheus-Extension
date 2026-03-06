@@ -236,7 +236,7 @@
             "selectSubtitles": "Escolher legendas",
             "subtitleTrack": "Faixa",
             "videoName": "Nome do vídeo",
-            "ftue": "Pistas auto estão aqui. O asbplayer não deteta em todo o lado. Pode carregar as suas."
+            "ftue": "Pistas auto estão aqui. O Metheus não deteta em todo o lado. Pode carregar as suas."
         },
         "videoSelect": {
             "multipleVideoElements": "Vários vídeos detetados",
@@ -579,3 +579,4 @@
         "close": "Fechar"
     }
 }
+

@@ -236,7 +236,7 @@
             "selectSubtitles": "Choisir sous-titres",
             "subtitleTrack": "Piste",
             "videoName": "Nom de la vidéo",
-            "ftue": "Les pistes auto sont ici. asbplayer ne les voit pas partout. Chargez les vôtres au besoin."
+            "ftue": "Les pistes auto sont ici. Metheus ne les voit pas partout. Chargez les vôtres au besoin."
         },
         "videoSelect": {
             "multipleVideoElements": "Plusieurs vidéos détectées",
@@ -580,3 +580,4 @@
         "close": "Fermer"
     }
 }
+

@@ -236,7 +236,7 @@
             "selectSubtitles": "Untertitel wählen",
             "subtitleTrack": "Spur",
             "videoName": "Videoname",
-            "ftue": "Gefundene Spuren hier wählen. asbplayer erkennt sie nicht überall. Eigene Dateien sind immer möglich."
+            "ftue": "Gefundene Spuren hier wählen. Metheus erkennt sie nicht überall. Eigene Dateien sind immer möglich."
         },
         "videoSelect": {
             "multipleVideoElements": "Mehrere Videos erkannt",
@@ -580,3 +580,4 @@
         "close": "Schließen"
     }
 }
+

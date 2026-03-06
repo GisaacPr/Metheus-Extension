@@ -425,6 +425,12 @@ class PageColorizer {
     private documentWordStatusListener?: (event: Event) => void;
     private colorizeDebounceId: number | null = null;
     private subtitleDebounceId: number | null = null;
+    // EXTCS-002 FIX: Track all resources for cleanup
+    private videoObserver: IntersectionObserver | null = null;
+    private videoMutationObserver: MutationObserver | null = null;
+    private scrollHandler: (() => void) | null = null;
+    private resizeHandler: (() => void) | null = null;
+    private clickHandler: ((e: Event) => void) | null = null;
 
     private normalizeSentence(text: string): string {
         return text
@@ -586,6 +592,7 @@ class PageColorizer {
             },
             { threshold: [0, 0.1, 0.25, 0.5] }
         );
+        this.videoObserver = videoObserver;
 
         // Observe existing videos
         document.querySelectorAll('video').forEach((v) => {
@@ -609,9 +616,12 @@ class PageColorizer {
             this.updateGlobalPillVisibility();
         });
         videoMutationObserver.observe(document.body, { childList: true, subtree: true });
+        this.videoMutationObserver = videoMutationObserver;
 
-        window.addEventListener('scroll', () => this.updateGlobalPillVisibility(), { passive: true });
-        window.addEventListener('resize', () => this.updateGlobalPillVisibility(), { passive: true });
+        this.scrollHandler = () => this.updateGlobalPillVisibility();
+        this.resizeHandler = () => this.updateGlobalPillVisibility();
+        window.addEventListener('scroll', this.scrollHandler, { passive: true });
+        window.addEventListener('resize', this.resizeHandler, { passive: true });
 
         if (this.visibilityIntervalId !== null) {
             clearInterval(this.visibilityIntervalId);
@@ -643,31 +653,28 @@ class PageColorizer {
             this.maxElements = 1000;
             this.colorizeSafeElements();
 
-            document.addEventListener(
-                'click',
-                async (event) => {
-                    const target = event.target as HTMLElement | null;
-                    const wordEl = target?.closest('.ln-word') as HTMLElement | null;
-                    if (!wordEl) {
-                        return;
-                    }
+            this.clickHandler = async (event: Event) => {
+                const target = (event as MouseEvent).target as HTMLElement | null;
+                const wordEl = target?.closest('.ln-word') as HTMLElement | null;
+                if (!wordEl) {
+                    return;
+                }
 
-                    const word = wordEl.dataset.word || wordEl.textContent?.trim() || '';
-                    if (!word) {
-                        return;
-                    }
+                const word = wordEl.dataset.word || wordEl.textContent?.trim() || '';
+                if (!word) {
+                    return;
+                }
 
-                    const sentence = this.resolveSentenceForWord(wordEl);
-                    const rect = wordEl.getBoundingClientRect();
-                    await this.popup.show(word, sentence, {
-                        x: rect.left + rect.width / 2,
-                        y: rect.bottom + 10,
-                        anchorRect: rect,
-                        subtitleLanguage: settings.metheusTargetLanguage || 'en',
-                    });
-                },
-                true
-            );
+                const sentence = this.resolveSentenceForWord(wordEl);
+                const rect = wordEl.getBoundingClientRect();
+                await this.popup.show(word, sentence, {
+                    x: rect.left + rect.width / 2,
+                    y: rect.bottom + 10,
+                    anchorRect: rect,
+                    subtitleLanguage: settings.metheusTargetLanguage || 'en',
+                });
+            };
+            document.addEventListener('click', this.clickHandler, true);
 
             // Set up observer for dynamic content
             this.setupObserver();
@@ -1122,6 +1129,36 @@ class PageColorizer {
             delete htmlElement.dataset.lnSubtitleFallback;
         }
 
+        // EXT-BUG2 FIX: Also decolorize elements marked by SubtitleColorizer
+        // (e.g. YouTube subtitles use data-ln-colorized, not data-ln-page-colorized)
+        const subtitleColorizedElements = document.querySelectorAll('[data-ln-colorized="true"]');
+        for (const el of subtitleColorizedElements) {
+            this.unwrapLnWords(el as HTMLElement);
+            el.removeAttribute('data-ln-colorized');
+            restoredCount++;
+        }
+
+        // Hard fallback: if any ln-word escaped tracked containers (dynamic comments feeds, etc),
+        // unwrap globally except extension-owned UI roots.
+        const globalWrappedWords = document.querySelectorAll(
+            '.ln-word:not(#metheus-popup-host .ln-word):not(#ln-smart-hub-pill-iframe .ln-word)'
+        );
+        for (const node of Array.from(globalWrappedWords)) {
+            if (!(node instanceof HTMLElement)) {
+                continue;
+            }
+
+            if (node.closest('#metheus-popup-host, #ln-smart-hub-pill-iframe')) {
+                continue;
+            }
+
+            const text = document.createTextNode(node.textContent || '');
+            node.replaceWith(text);
+            restoredCount++;
+        }
+
+        document.body.normalize();
+
         console.log('[LN Page Colorizer] Restored', restoredCount, 'elements');
     }
 
@@ -1171,6 +1208,61 @@ class PageColorizer {
             wordNode.replaceWith(text);
         }
     }
+
+    // EXTCS-002 FIX: Tear down all observers, intervals, and listeners
+    destroy(): void {
+        this.observer?.disconnect();
+        this.observer = null;
+        this.videoObserver?.disconnect();
+        this.videoObserver = null;
+        this.videoMutationObserver?.disconnect();
+        this.videoMutationObserver = null;
+        if (this.visibilityIntervalId !== null) {
+            clearInterval(this.visibilityIntervalId);
+            this.visibilityIntervalId = null;
+        }
+        if (this.colorizeDebounceId !== null) {
+            clearTimeout(this.colorizeDebounceId);
+            this.colorizeDebounceId = null;
+        }
+        if (this.subtitleDebounceId !== null) {
+            clearTimeout(this.subtitleDebounceId);
+            this.subtitleDebounceId = null;
+        }
+        if (this.collapseResizeTimeoutId !== null) {
+            clearTimeout(this.collapseResizeTimeoutId);
+            this.collapseResizeTimeoutId = null;
+        }
+        if (this.scrollHandler) {
+            window.removeEventListener('scroll', this.scrollHandler);
+            this.scrollHandler = null;
+        }
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+        }
+        if (this.clickHandler) {
+            document.removeEventListener('click', this.clickHandler, true);
+            this.clickHandler = null;
+        }
+        if (this.runtimeMessageListener) {
+            browser.runtime.onMessage.removeListener(this.runtimeMessageListener);
+            this.runtimeMessageListener = undefined;
+        }
+        if (this.documentWordStatusListener) {
+            document.removeEventListener('metheus-word-status-updated', this.documentWordStatusListener);
+            this.documentWordStatusListener = undefined;
+        }
+        if (this.colorizer) {
+            this.colorizer.destroy();
+            this.colorizer = null;
+        }
+        if (this.iframe) {
+            this.iframe.remove();
+            this.iframe = null;
+        }
+        this.popup?.destroy?.();
+    }
 }
 
 export default defineContentScript({
@@ -1206,6 +1298,8 @@ export default defineContentScript({
         const init = () => {
             const colorizer = new PageColorizer();
             void colorizer.initialize();
+            // EXTCS-002 FIX: Clean up all resources when content script context is invalidated
+            ctx.onInvalidated(() => colorizer.destroy());
         };
 
         if (document.readyState === 'complete') {

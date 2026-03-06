@@ -72,7 +72,9 @@ export class VocabularyService {
                 // Check DB
                 // Extension lookup method returns { found: boolean }
                 // We use 'lookup' which checks local DB and creates a cache entry
-                const result = await dictionaryService.lookup(cleanPhrase, language);
+                const result = await dictionaryService.lookup(cleanPhrase, language, undefined, {
+                    skipBlockingOnline: true,
+                });
 
                 if (result.found) {
                     // FOUND A MATCH!

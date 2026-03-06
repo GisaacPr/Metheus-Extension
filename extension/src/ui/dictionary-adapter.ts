@@ -41,6 +41,49 @@ export interface UnifiedEntry {
     translations?: string[]; // Top level translations of the word itself
 }
 
+function toTitleLabel(rawKey: string): string {
+    return rawKey
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function toMetadataValue(value: unknown): string | number | undefined {
+    if (value === null || value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : undefined;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.replace(/\s+/g, ' ').trim();
+        return normalized.length > 0 ? normalized : undefined;
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+
+    if (Array.isArray(value)) {
+        const normalized = value
+            .map((item) => toMetadataValue(item))
+            .filter((item): item is string | number => item !== undefined)
+            .map((item) => String(item).trim())
+            .filter((item) => item.length > 0);
+
+        if (normalized.length === 0) {
+            return undefined;
+        }
+
+        return normalized.join(', ');
+    }
+
+    return undefined;
+}
+
 /**
  * Tokenizes text into an array of { text: string, isWord: boolean } objects.
  * Uses Intl.Segmenter for robust, language-aware segmentation (supports CJK).
@@ -98,7 +141,12 @@ export function normalizeEntry(raw: DictionaryEntry): UnifiedEntry {
     let phoneticLabel = 'IPA';
 
     // Helper to safely get the linguistic data object
-    const langData = typeof entry.lang === 'object' && entry.lang !== null ? entry.lang : entry.language_specific_data;
+    const langData =
+        (typeof entry.lang === 'object' && entry.lang !== null ? entry.lang : undefined) ||
+        (typeof entry.language_specific_data === 'object' && entry.language_specific_data !== null
+            ? entry.language_specific_data
+            : undefined) ||
+        (typeof entry.langData === 'object' && entry.langData !== null ? entry.langData : undefined);
 
     if (!phonetic && langData) {
         if (langData.py) {
@@ -134,13 +182,14 @@ export function normalizeEntry(raw: DictionaryEntry): UnifiedEntry {
     // Level (CEFR, HSK, JLPT)
     // 'lvl' is the optimized key for CEFR usually.
     // 'hsk' or 'jlpt' might exist in 'lang' for Asian languages?
-    const level = entry.lvl || entry.cefr_level || langData?.hsk || langData?.jlpt;
+    const level =
+        entry.lvl || entry.l || entry.cefr || entry.cefr_level || entry.level || langData?.hsk || langData?.jlpt;
     if (level) {
         badges.push({ type: 'level', label: String(level) });
     }
 
     // Frequency
-    const freq = entry.frequency || entry.f;
+    const freq = entry.frequency || entry.f || entry.freq || entry.rank || entry.frequency_rank || entry.word_rank;
     if (freq) {
         // "f" is usually a rank (1 = most common). "frequency" might be "Top 300".
         // If it's a number, format it.
@@ -151,11 +200,33 @@ export function normalizeEntry(raw: DictionaryEntry): UnifiedEntry {
     // 4. Resolve Metadata (Linguistic Details)
     // Flatten attributes from 'lang' object
     const linguisticData: UnifiedEntry['linguisticData'] = [];
+    const seenMetadataKeys = new Set<string>();
+
+    const pushMetadata = (key: string, label: string, value: unknown) => {
+        const normalizedValue = toMetadataValue(value);
+        if (normalizedValue === undefined) {
+            return;
+        }
+        if (seenMetadataKeys.has(key)) {
+            return;
+        }
+
+        seenMetadataKeys.add(key);
+        linguisticData.push({
+            label,
+            value: normalizedValue,
+            key,
+        });
+    };
 
     if (langData) {
         if (Array.isArray(langData)) {
             // Already mapped array
-            linguisticData.push(...langData);
+            langData.forEach((item: any) => {
+                const key = String(item?.key || item?.label || `meta_${linguisticData.length + 1}`);
+                const label = String(item?.label || toTitleLabel(key));
+                pushMetadata(key, label, item?.value);
+            });
         } else {
             // Object map
             const metadataMap: Record<string, string> = {
@@ -198,20 +269,95 @@ export function normalizeEntry(raw: DictionaryEntry): UnifiedEntry {
 
             Object.keys(langData).forEach((key) => {
                 const label = metadataMap[key];
-                if (label && langData[key]) {
-                    linguisticData.push({
-                        label,
-                        value: langData[key],
-                        key,
-                    });
+                if (label) {
+                    pushMetadata(key, label, langData[key]);
                 }
+            });
+
+            // Keep extra language metadata keys instead of dropping them.
+            Object.keys(langData).forEach((key) => {
+                if (metadataMap[key]) {
+                    return;
+                }
+
+                const rawValue = langData[key];
+                if (typeof rawValue === 'object' && rawValue !== null && !Array.isArray(rawValue)) {
+                    return;
+                }
+                pushMetadata(key, toTitleLabel(key), rawValue);
             });
         }
     }
 
     if (entry.register) {
-        linguisticData.push({ label: 'Register', value: entry.register, key: 'register' });
+        pushMetadata('register', 'Register', entry.register);
     }
+
+    // Keep core high-value metrics in Details as well.
+    if (pos && typeof pos === 'string' && pos.toLowerCase() !== 'unknown') {
+        pushMetadata('part_of_speech', 'Part of Speech', pos);
+    }
+
+    if (level !== undefined && level !== null && `${level}`.trim().length > 0) {
+        pushMetadata('cefr', 'CEFR / Level', level);
+    }
+
+    if (freq !== undefined && freq !== null && `${freq}`.trim().length > 0) {
+        pushMetadata('frequency', 'Frequency', freq);
+    }
+
+    if (phonetic) {
+        pushMetadata('phonetic', phoneticLabel || 'Phonetic', phonetic);
+    }
+
+    // Preserve additional scalar top-level metadata keys from local dictionaries.
+    const ignoredTopLevel = new Set([
+        'id',
+        'w',
+        'word',
+        'entry_word',
+        'd',
+        'definitions',
+        'examples',
+        'pos',
+        'part_of_speech',
+        'lvl',
+        'l',
+        'cefr',
+        'cefr_level',
+        'level',
+        'frequency',
+        'f',
+        'freq',
+        'rank',
+        'frequency_rank',
+        'word_rank',
+        'lang',
+        'langData',
+        'language_specific_data',
+        'linguisticData',
+        'register',
+        'ipa',
+        'phonetic',
+        'phoneticLabel',
+        'pron',
+        'audio',
+        'translations',
+        'source',
+        'language',
+    ]);
+
+    Object.keys(entry).forEach((key) => {
+        if (ignoredTopLevel.has(key)) {
+            return;
+        }
+        const rawValue = entry[key];
+        if (typeof rawValue === 'object' && rawValue !== null && !Array.isArray(rawValue)) {
+            return;
+        }
+
+        pushMetadata(key, toTitleLabel(key), rawValue);
+    });
 
     // 5. Resolve Definitions
     const definitions: UnifiedEntry['definitions'] = [];

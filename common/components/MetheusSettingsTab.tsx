@@ -778,7 +778,7 @@ export default function MetheusSettingsTab({
                                     displayEmpty
                                 >
                                     <MenuItem value="">
-                                        <em>{t('settings.defaultDeckLabel')}</em>
+                                        <em>{t('settings.newDeckLabel', { defaultValue: 'New Deck' })}</em>
                                     </MenuItem>
                                     {decks.map((deck) => (
                                         <MenuItem key={deck.id} value={deck.id}>
@@ -793,7 +793,9 @@ export default function MetheusSettingsTab({
                                     value={settings.metheusTargetDeckId || ''}
                                     onChange={(e) => onSettingChanged('metheusTargetDeckId', e.target.value)}
                                     size="small"
-                                    helperText={t('settings.leaveEmptyForDefault')}
+                                    helperText={t('settings.leaveEmptyForDefault', {
+                                        defaultValue: 'Leave empty to auto-create/use New Deck',
+                                    })}
                                 />
                             )}
                         </Grid>

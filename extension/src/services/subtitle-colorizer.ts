@@ -685,9 +685,17 @@ export class SubtitleColorizer {
         // Reload known words
         await this.syncService.loadKnownWords(this.language);
 
-        // Remove colorization from all elements
+        // Remove colorization from all elements and unwrap spans
         const colorizedElements = document.querySelectorAll('[data-ln-colorized="true"]');
         colorizedElements.forEach((el) => {
+            // EXT-BUG2 FIX: Unwrap ln-word spans before removing the attribute
+            // so re-colorize processes clean text nodes
+            const wrappedWords = el.querySelectorAll('span.ln-word');
+            for (const wordNode of wrappedWords) {
+                const text = document.createTextNode(wordNode.textContent || '');
+                wordNode.replaceWith(text);
+            }
+            el.normalize();
             el.removeAttribute('data-ln-colorized');
         });
 

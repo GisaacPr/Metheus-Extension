@@ -100,6 +100,17 @@ export interface DictionaryLookupResult {
     allEntries?: DictionaryEntry[]; // Multiple entries from different dictionaries
 }
 
+export interface DictionaryLookupOptions {
+    skipBlockingOnline?: boolean;
+}
+
+export interface DictionaryLanguageStatus {
+    isDownloaded: boolean;
+    isDownloading: boolean;
+    progress: number;
+    status?: string;
+}
+
 export class MetheusDictionaryService {
     /**
      * Return supported language codes for multi-language lookup.
@@ -133,6 +144,10 @@ export class MetheusDictionaryService {
         } catch (e) {
             return false;
         }
+    }
+
+    private _isBackgroundContext(): boolean {
+        return typeof window === 'undefined';
     }
 
     /**
@@ -182,7 +197,8 @@ export class MetheusDictionaryService {
     async lookup(
         word: string,
         language?: string,
-        onEnrich?: (result: DictionaryLookupResult) => void
+        onEnrich?: (result: DictionaryLookupResult) => void,
+        options?: DictionaryLookupOptions
     ): Promise<DictionaryLookupResult> {
         // Fetch all needed settings at once
         const settings = await this._settingsProvider.get(['metheusEnabled', 'metheusUrl', 'metheusTargetLanguage']);
@@ -206,7 +222,9 @@ export class MetheusDictionaryService {
             return { found: true, entry: allEntries[0], allEntries };
         }
 
-        // 2. Client Mode (Content Script): Proxy to Background
+        // 2. Client Mode (Content Script): proxy to background FIRST.
+        // Content scripts cannot access the extension's IndexedDB (different origin).
+        // They must always delegate to the background service worker for local DB lookups.
         if (!this._isExtensionContext()) {
             console.log(`[LN Debug] Client Mode: Proxying lookup for '${word}'`);
             try {
@@ -217,20 +235,25 @@ export class MetheusDictionaryService {
                         messageId: uuidv4(),
                         word,
                         language: lang,
+                        skipBlockingOnline: !!options?.skipBlockingOnline,
                     },
                 });
                 console.log(`[LN Debug] Proxy Response for '${word}':`, response);
-                return response as DictionaryLookupResult;
+                const result = response as DictionaryLookupResult;
+                // Cache proxy results in content-script memory for fast subsequent lookups
+                if (result.found && result.allEntries) {
+                    this._addToCache(cacheKey, result.allEntries);
+                }
+                return result;
             } catch (e) {
                 console.error('[LN Debug] Proxy lookup failed', e);
                 return { found: false };
             }
         }
 
-        // 3. Server Mode (Background/Popup): Query Local DB
+        // 3. Extension Context (Background/Popup/SidePanel): Query Local DB directly.
         try {
             console.log(`[LN Debug] Querying DB for word: '${word}', lang: '${lang}'`);
-            // Use the fallback lookup (Exact -> Lower -> Title) implemented in DB or simulating it here
             const localResultsRaw = await db.lookupWithFallback(word, lang);
             console.log(
                 `[LN Debug] DB results for '${word}' in '${lang}': ${localResultsRaw?.length || 0} entries found`
@@ -240,7 +263,6 @@ export class MetheusDictionaryService {
                 console.log(`[LN Debug] First result word: '${localResultsRaw[0]?.w || localResultsRaw[0]?.word}'`);
                 // Map raw DB entries to DictionaryEntry
                 const allEntries = localResultsRaw.map((raw) => this._mapRawToEntry(raw, lang));
-                // console.log(`[LN Debug] Mapped entries:`, allEntries);
 
                 // Combine for legacy single-entry return (if needed, but UI uses allEntries mostly)
                 let combinedEntry = allEntries[0];
@@ -267,6 +289,10 @@ export class MetheusDictionaryService {
 
         console.log(`[LN Debug] Word '${word}' NOT FOUND in any dictionary`);
 
+        if (options?.skipBlockingOnline) {
+            return { found: false };
+        }
+
         // 4. Online Dictionary Enrichment
         // If local DB had no results, try online as a blocking fallback.
         // If local DB had results, the enrichment runs in parallel (see the early return above).
@@ -292,7 +318,8 @@ export class MetheusDictionaryService {
      * Downloads a dictionary for offline use
      */
     async downloadLanguage(language: string, onProgress?: (p: number, s: string) => void): Promise<void> {
-        if (!this._isExtensionContext()) {
+        // Always run download in background so it survives popup/sidepanel close.
+        if (!this._isBackgroundContext()) {
             // Proxy download request
             await browser.runtime.sendMessage({
                 sender: 'metheus-client',
@@ -320,13 +347,16 @@ export class MetheusDictionaryService {
      * Deletes a downloaded dictionary
      */
     async deleteLanguage(language: string): Promise<void> {
-        if (!this._isExtensionContext()) {
-            // Proxy delete request (if needed, though UI usually runs in popup which is extension context)
-            // Note: We don't have a 'dictionary-delete' command in background yet, assuming direct DB access for Popup.
-            // But if called from Content Script, we'd need a proxy.
-            // For now, let's assume direct DB access since Popup shares context or direct indexedDB access.
-            // Actually, Popup IS extension context, so it hits the else block.
-            console.warn('Delete from content script not fully implemented yet');
+        // Always run delete in background so all UIs behave consistently.
+        if (!this._isBackgroundContext()) {
+            await browser.runtime.sendMessage({
+                sender: 'metheus-client',
+                message: {
+                    command: 'dictionary-delete',
+                    messageId: uuidv4(),
+                    language,
+                },
+            });
             return;
         }
 
@@ -340,7 +370,7 @@ export class MetheusDictionaryService {
      * Checks if a language is downloaded
      */
     async isLanguageDownloaded(language: string): Promise<boolean> {
-        if (!this._isExtensionContext()) {
+        if (!this._isBackgroundContext()) {
             const res = await browser.runtime.sendMessage({
                 sender: 'metheus-client',
                 message: {
@@ -352,6 +382,42 @@ export class MetheusDictionaryService {
             return (res as DictionaryStatusResponse).isDownloaded;
         }
         return db.isLanguageDownloaded(language);
+    }
+
+    async getLanguageStatus(language: string): Promise<DictionaryLanguageStatus> {
+        if (!this._isBackgroundContext()) {
+            const res = (await browser.runtime.sendMessage({
+                sender: 'metheus-client',
+                message: {
+                    command: 'dictionary-get-status',
+                    messageId: uuidv4(),
+                    language,
+                },
+            })) as any;
+
+            return {
+                isDownloaded: !!res?.isDownloaded,
+                isDownloading: !!res?.isDownloading,
+                progress: typeof res?.progress === 'number' ? Math.max(0, Math.min(100, res.progress)) : 0,
+                status: typeof res?.status === 'string' ? res.status : undefined,
+            };
+        }
+
+        const dbStatus = await db.getLanguageStatus(language);
+        const isDownloaded = !!dbStatus?.isComplete;
+        const progress =
+            dbStatus && dbStatus.totalChunks > 0
+                ? Math.max(0, Math.min(100, Math.round((dbStatus.downloadedChunks / dbStatus.totalChunks) * 100)))
+                : isDownloaded
+                  ? 100
+                  : 0;
+
+        return {
+            isDownloaded,
+            isDownloading: false, // Background-only fallback; runtime state is tracked in DictionaryMessageHandler
+            progress,
+            status: isDownloaded ? 'Complete' : dbStatus ? 'Partial' : 'Not downloaded',
+        };
     }
 
     /**
@@ -511,11 +577,24 @@ export class MetheusDictionaryService {
             }
         }
 
+        const rawFrequency = raw.frequency ?? raw.f ?? raw.freq ?? raw.rank ?? raw.frequency_rank ?? raw.word_rank;
+        const parsedFrequency =
+            typeof rawFrequency === 'number'
+                ? rawFrequency
+                : typeof rawFrequency === 'string'
+                  ? (() => {
+                        const match = rawFrequency.match(/-?\d+(\.\d+)?/);
+                        return match ? Number(match[0]) : undefined;
+                    })()
+                  : undefined;
+
         return {
             ...raw, // Preserve all raw keys (w, d, lang, l) for the UI Adapter
             word: raw.w || raw.entry_word,
             language,
-            cefr: raw.l || raw.level,
+            cefr: raw.lvl || raw.l || raw.cefr || raw.cefr_level || raw.level,
+            frequency:
+                typeof parsedFrequency === 'number' && Number.isFinite(parsedFrequency) ? parsedFrequency : undefined,
             partOfSpeech: raw.pos,
             definitions,
             // Add other extracted fields if optimized format has them (frequency, etc)

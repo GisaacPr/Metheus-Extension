@@ -236,7 +236,7 @@
             "selectSubtitles": "Valitse tekstitys",
             "subtitleTrack": "Tekstitysraita",
             "videoName": "Videonnimi",
-            "ftue": "Automaattisesti havaitut tekstitysraidat voidaan valita täällä. asbplayer ei osaa havaita tekstityksiä jokaisella sivustolla. Voit aina ladata omia tekstitystiedostoja."
+            "ftue": "Automaattisesti havaitut tekstitysraidat voidaan valita täällä. Metheus ei osaa havaita tekstityksiä jokaisella sivustolla. Voit aina ladata omia tekstitystiedostoja."
         },
         "videoSelect": {
             "multipleVideoElements": "Useita video-elementtejä havaittu",
@@ -580,3 +580,4 @@
         "close": "Sulje"
     }
 }
+

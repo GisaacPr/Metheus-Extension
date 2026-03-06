@@ -693,15 +693,27 @@ export class MetheusSyncService {
         if (incomingVocabulary) {
             const normalizedWords = this._normalizeBridgeKnownWords(incomingVocabulary);
             if (normalizedWords.length > 0) {
+                // EXT-002 FIX: Preserve pending words that aren't in the incoming vocabulary.
+                // Without this, words mined between the last handoff and config update are silently lost.
+                const pendingToRestore = new Map(this._pendingWords);
+
                 this._knownWordsCache.clear();
                 for (const word of normalizedWords) {
                     const key = `${word.language}:${word.word}`;
                     this._knownWordsCache.set(key, word);
+                    // If the incoming vocabulary already contains this word, no need to keep it pending
+                    pendingToRestore.delete(key);
                 }
                 this._pendingWords.clear();
+                // Re-add any pending words NOT covered by the incoming vocabulary
+                for (const [key, word] of pendingToRestore) {
+                    this._pendingWords.set(key, word);
+                }
                 this._lastSyncTimestamp = Date.now();
                 await this._persistCache();
-                console.log(`[LN Sync] Replaced vocabulary cache from bridge: ${normalizedWords.length} words`);
+                console.log(
+                    `[LN Sync] Replaced vocabulary cache from bridge: ${normalizedWords.length} words, preserved ${pendingToRestore.size} pending`
+                );
             }
         }
 

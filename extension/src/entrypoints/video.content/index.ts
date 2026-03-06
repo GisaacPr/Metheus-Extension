@@ -373,7 +373,11 @@ export default defineContentScript({
 
             browser.runtime.onMessage.addListener(messageListener);
 
-            window.addEventListener('beforeunload', (event) => {
+            // EXTCS-003 FIX: Extract cleanup into reusable function for both beforeunload and ctx.onInvalidated
+            let cleanedUp = false;
+            const cleanup = () => {
+                if (cleanedUp) return;
+                cleanedUp = true;
                 for (let b of bindings) {
                     b.unbind();
                 }
@@ -391,7 +395,10 @@ export default defineContentScript({
                 frameInfoBroadcaster?.unbind();
                 unbindToggleSidePanel?.();
                 browser.runtime.onMessage.removeListener(messageListener);
-            });
+            };
+
+            window.addEventListener('beforeunload', cleanup);
+            ctx.onInvalidated(cleanup);
         };
 
         // E-M5 FIX: Guard against readystatechange calling bind() multiple times

@@ -1,12 +1,23 @@
-import { db, DictionaryChunk } from './db/dictionary-db';
+import { db } from './db/dictionary-db';
 import { SettingsProvider } from '@metheus/common/settings';
 
 /**
  * Service to handle downloading dictionaries
  * Simulates the "API gives me a link" flow by constructing CDN URLs or asking API.
  */
+type DictionaryManifestEntry = {
+    dictionary: string;
+    language?: string;
+    chunks?: Record<string, unknown>;
+};
+
+type DictionaryPlan = {
+    dictId: string;
+    chunks: string[];
+};
+
 export class DictionaryDownloadService {
-    private static BATCH_SIZE = 6; // Parallel downloads limit (browser/server friendly)
+    private static CHUNK_CONCURRENCY = 8; // Parallel chunk downloads per dictionary
     private static CDN_BASE_URL = 'https://cdn.metheus.app/file/metheus-assets';
 
     /**
@@ -31,11 +42,12 @@ export class DictionaryDownloadService {
         onProgress?: (percent: number, status: string) => void,
         explicitDictionaryIds?: string[]
     ): Promise<void> {
+        void settingsProvider;
         const source = this.getSourceConfig();
 
         // 1. Fetch Manifest
         onProgress?.(0, 'Checking manifest...');
-        let manifest: any[] = [];
+        let manifest: DictionaryManifestEntry[] = [];
         try {
             const res = await fetch(source.manifestUrl);
             if (res.ok) {
@@ -47,47 +59,83 @@ export class DictionaryDownloadService {
             console.warn('[DictDownloader] Manifest fetch error', e);
         }
 
-        // Get dictionary IDs for this language
-        // Priority 1: Use explicit IDs from config (Standard Parity)
-        // Priority 2: Use manifest based discovery (Legacy/Fallback)
-        let targetDicts: string[] = [];
-
-        if (explicitDictionaryIds && explicitDictionaryIds.length > 0) {
-            targetDicts = explicitDictionaryIds;
-        } else if (manifest.length > 0) {
-            // Find dictionaries where language matches
-            targetDicts = manifest
-                .filter(
-                    (d: any) =>
-                        d.language === language || d.dictionary.startsWith(this.getDictionaryFolderName(language))
-                )
-                .map((d: any) => d.dictionary);
-        }
-
-        if (targetDicts.length === 0) {
-            // Fallback to standard naming if manifest fails
-            targetDicts = [this.getDictionaryFolderName(language)];
-        }
+        const targetDicts = this.resolveTargetDictionaries(language, manifest, explicitDictionaryIds);
 
         console.log(`[DictDownloader] Downloading dictionaries for ${language}:`, targetDicts);
 
-        let totalProgress = 0;
-        const progressPerDict = 100 / targetDicts.length;
+        const plans: DictionaryPlan[] = targetDicts.map((dictId) => ({
+            dictId,
+            chunks: this.resolveChunkIds(dictId, manifest),
+        }));
+        const totalChunks = plans.reduce((sum, plan) => sum + plan.chunks.length, 0);
 
-        for (const dictId of targetDicts) {
-            await this.downloadSingleDictionary(source.baseUrl, dictId, manifest, (p, s) => {
-                const overall = totalProgress + (p * progressPerDict) / 100;
-                onProgress?.(overall, `${dictId}: ${s}`);
-            });
-            totalProgress += progressPerDict;
-        }
-
-        // Update Status in DB
         await db.status.put({
             language,
-            version: '2.0', // Phase 2
-            totalChunks: 0, // We could sum them up but simple is fine
+            version: '2.1',
+            totalChunks,
             downloadedChunks: 0,
+            lastUpdated: Date.now(),
+            isComplete: false,
+        });
+
+        let completedAcrossAll = 0;
+        let failedAcrossAll = 0;
+
+        // Process dictionary IDs serially to avoid DB and decompression contention.
+        for (const plan of plans) {
+            const completedBefore = completedAcrossAll;
+            const result = await this.downloadSingleDictionary(
+                source.baseUrl,
+                language,
+                plan,
+                (completedForDict, totalForDict, status) => {
+                    const completedTotal = completedBefore + completedForDict;
+                    const progress =
+                        totalChunks > 0
+                            ? Math.max(0, Math.min(100, Math.round((completedTotal / totalChunks) * 100)))
+                            : 100;
+
+                    onProgress?.(progress, `${plan.dictId}: ${status}`);
+                    void db.status.put({
+                        language,
+                        version: '2.1',
+                        totalChunks,
+                        downloadedChunks: Math.min(totalChunks, completedTotal),
+                        lastUpdated: Date.now(),
+                        isComplete: false,
+                    });
+
+                    // Prevent TypeScript "unused arg" if we change this callback shape in the future.
+                    void totalForDict;
+                }
+            );
+
+            completedAcrossAll += result.completed;
+            failedAcrossAll += result.failed;
+        }
+
+        if (failedAcrossAll > 0) {
+            await db.status.put({
+                language,
+                version: '2.1',
+                totalChunks,
+                downloadedChunks: Math.min(totalChunks, completedAcrossAll),
+                lastUpdated: Date.now(),
+                isComplete: false,
+            });
+            const message = `Completed with ${failedAcrossAll} failed parts`;
+            onProgress?.(
+                totalChunks > 0 ? Math.max(0, Math.min(100, Math.round((completedAcrossAll / totalChunks) * 100))) : 0,
+                message
+            );
+            throw new Error(`[DictDownloader] ${language} ${message}`);
+        }
+
+        await db.status.put({
+            language,
+            version: '2.1',
+            totalChunks,
+            downloadedChunks: totalChunks,
             lastUpdated: Date.now(),
             isComplete: true,
         });
@@ -95,56 +143,103 @@ export class DictionaryDownloadService {
         onProgress?.(100, 'Complete');
     }
 
-    private static async downloadSingleDictionary(
-        baseUrl: string,
-        dictId: string,
-        manifest: any[],
-        onProgress: (p: number, s: string) => void
-    ): Promise<void> {
-        // Determine chunks
-        let chunks: string[] = [];
-        const dictStats = manifest.find((d: any) => d.dictionary === dictId);
-
-        if (dictStats && dictStats.chunks) {
-            chunks = Object.keys(dictStats.chunks);
-        } else {
-            // Fallback A-Z
-            chunks = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    private static resolveTargetDictionaries(
+        language: string,
+        manifest: DictionaryManifestEntry[],
+        explicitDictionaryIds?: string[]
+    ): string[] {
+        // Priority 1: Use explicit IDs from config (Standard Parity)
+        if (explicitDictionaryIds && explicitDictionaryIds.length > 0) {
+            return explicitDictionaryIds;
         }
 
-        const total = chunks.length;
-        let completed = 0;
+        // Priority 2: Use manifest based discovery (Legacy/Fallback)
+        if (manifest.length > 0) {
+            const manifestDicts = manifest
+                .filter(
+                    (entry) =>
+                        entry.language === language ||
+                        entry.dictionary.startsWith(this.getDictionaryFolderName(language)) ||
+                        entry.dictionary.startsWith(`LN_${language}`)
+                )
+                .map((entry) => entry.dictionary);
+            if (manifestDicts.length > 0) {
+                return manifestDicts;
+            }
+        }
+
+        // Fallback to standard naming if manifest fails
+        return [this.getDictionaryFolderName(language)];
+    }
+
+    private static resolveChunkIds(dictId: string, manifest: DictionaryManifestEntry[]): string[] {
+        const dictStats = manifest.find((entry) => entry.dictionary === dictId);
+        if (dictStats?.chunks) {
+            return Object.keys(dictStats.chunks).sort();
+        }
+
+        // Fallback A-Z
+        return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    }
+
+    private static async downloadSingleDictionary(
+        baseUrl: string,
+        language: string,
+        plan: DictionaryPlan,
+        onProgress: (completed: number, total: number, status: string) => void
+    ): Promise<{ completed: number; failed: number }> {
+        const total = plan.chunks.length;
+        const loadedChunks = await db.getLoadedChunkIds(language, plan.dictId);
+        const pendingChunks: string[] = [];
+
+        let completed = 0; // Includes already imported chunks for resume support
         let failed = 0;
 
+        for (const chunkId of plan.chunks) {
+            if (loadedChunks.has(chunkId)) {
+                completed++;
+            } else {
+                pendingChunks.push(chunkId);
+            }
+        }
+
+        onProgress(completed, total, `Downloaded ${completed}/${total} parts`);
+
         // Process in batches
-        for (let i = 0; i < chunks.length; i += this.BATCH_SIZE) {
-            const batch = chunks.slice(i, i + this.BATCH_SIZE);
+        for (let i = 0; i < pendingChunks.length; i += this.CHUNK_CONCURRENCY) {
+            const batch = pendingChunks.slice(i, i + this.CHUNK_CONCURRENCY);
 
             await Promise.allSettled(
                 batch.map(async (chunkId) => {
                     try {
-                        await this.processChunk(baseUrl, dictId, chunkId);
+                        await this.processChunk(baseUrl, language, plan.dictId, chunkId);
                         completed++;
                     } catch (e) {
-                        console.error(`[DictDownloader] Failed chunk ${chunkId} for ${dictId}`, e);
+                        console.error(`[DictDownloader] Failed chunk ${chunkId} for ${plan.dictId}`, e);
                         failed++;
                     }
                 })
             );
 
-            onProgress((completed / total) * 100, `Downloaded ${completed}/${total} parts`);
+            onProgress(completed, total, `Downloaded ${completed}/${total} parts`);
         }
 
         if (failed > 0) {
-            // We don't throw, just warn, so other dicts can proceed
-            console.warn(`[DictDownloader] ${dictId} completed with ${failed} errors`);
+            console.warn(`[DictDownloader] ${plan.dictId} completed with ${failed} errors`);
         }
+
+        return { completed, failed };
     }
 
     /**
      * Process a single chunk: Download -> Decompress -> Store
      */
-    private static async processChunk(baseUrl: string, dictId: string, chunkId: string): Promise<void> {
+    private static async processChunk(
+        baseUrl: string,
+        language: string,
+        dictId: string,
+        chunkId: string
+    ): Promise<void> {
         const gzUrl = `${baseUrl}/${dictId}/${chunkId}.json.gz`;
         const jsonUrl = `${baseUrl}/${dictId}/${chunkId}.json`;
 
@@ -161,29 +256,10 @@ export class DictionaryDownloadService {
         }
 
         if (Array.isArray(data)) {
-            const langCode = this.mapDictIdToLang(dictId);
-            await db.bucketImport(langCode, chunkId, 1, data);
+            await db.bucketImport(language, chunkId, 1, data, dictId);
+        } else {
+            throw new Error(`Chunk ${chunkId} from ${dictId} did not return array data`);
         }
-    }
-
-    private static mapDictIdToLang(dictId: string): string {
-        // Reverse map or simple heuristic
-        if (dictId.startsWith('English')) return 'en';
-        if (dictId.startsWith('Español')) return 'es';
-        if (dictId.startsWith('Frances')) return 'fr';
-        if (dictId.startsWith('Aleman')) return 'de';
-        if (dictId.startsWith('Italiano')) return 'it';
-        if (dictId.startsWith('Portugues')) return 'pt';
-        if (dictId.startsWith('Japones')) return 'ja';
-        if (dictId.startsWith('Chino')) return 'zh';
-        if (dictId.startsWith('Korean')) return 'ko';
-        if (dictId.startsWith('Ruso')) return 'ru';
-
-        // LN_en style
-        if (dictId.startsWith('LN_')) return dictId.split('_')[1];
-
-        // Generic fallback: try to find language code in string
-        return 'en'; // Dangerous fallback?
     }
 
     /**
@@ -202,9 +278,7 @@ export class DictionaryDownloadService {
         const decompressed = res.body?.pipeThrough(ds);
         if (!decompressed) throw new Error('Decompression failed');
 
-        const blob = await new Response(decompressed).blob();
-        const text = await blob.text();
-        return JSON.parse(text);
+        return new Response(decompressed).json();
     }
 
     private static getDictionaryFolderName(lang: string): string {

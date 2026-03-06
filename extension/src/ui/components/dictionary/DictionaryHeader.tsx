@@ -5,6 +5,7 @@ import { cn } from '../../utils';
 interface DictionaryHeaderProps {
     word: string;
     phonetic?: string;
+    status?: number;
     badges: {
         type: 'pos' | 'level' | 'frequency' | 'other';
         label: string;
@@ -19,6 +20,7 @@ interface DictionaryHeaderProps {
 export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
     word,
     phonetic,
+    status = 0,
     badges,
     onSpeak,
     isSpeaking,
@@ -26,6 +28,18 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
     themeType = 'dark',
 }) => {
     const isDark = themeType === 'dark';
+    const headwordColorClass =
+        status >= 4
+            ? isDark
+                ? 'text-[#39FF14]'
+                : 'text-[#1B8E03]'
+            : status >= 1
+              ? isDark
+                  ? 'text-[#FCEE0A]'
+                  : 'text-[#B89300]'
+              : isDark
+                ? 'text-[#00F0FF]'
+                : 'text-[#007A8A]';
 
     return (
         <div
@@ -38,12 +52,12 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
         >
             <div className="flex items-start justify-between gap-3 sm:gap-4">
                 <div className="space-y-1.5 flex-1 min-w-0">
-                    {/* Word, Audio & Badges */}
+                    {/* Word & Audio */}
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <h2
                             className={cn(
                                 'text-[32px] sm:text-[40px] font-black tracking-tight truncate',
-                                isDark ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
+                                headwordColorClass
                             )}
                         >
                             {word}
@@ -68,30 +82,6 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                                 <Volume2 className="w-10 h-10" />
                             )}
                         </button>
-
-                        {/* Badges: CEFR & Frequency ONLY (moved next to audio) */}
-                        <div className="flex flex-wrap items-center gap-2 ml-1">
-                            {badges
-                                .filter((b) => b.type === 'level' || b.type === 'frequency')
-                                .map((badge, i) => (
-                                    <span
-                                        key={`top-${i}`}
-                                        className={cn(
-                                            'px-1.5 py-0.5 rounded text-[14px] font-bold uppercase tracking-wider',
-                                            badge.type === 'level' &&
-                                                (isDark
-                                                    ? 'bg-indigo-900/30 text-indigo-400'
-                                                    : 'bg-indigo-100 text-indigo-600'),
-                                            badge.type === 'frequency' &&
-                                                (isDark
-                                                    ? 'bg-[#39FF14]/20 text-[#39FF14]'
-                                                    : 'bg-[#39FF14]/20 text-zinc-900')
-                                        )}
-                                    >
-                                        {badge.label}
-                                    </span>
-                                ))}
-                        </div>
                     </div>
 
                     {/* Translation - single line with ellipsis */}
@@ -99,7 +89,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         <div
                             className={cn(
                                 'text-[15px] sm:text-[16px] font-semibold leading-snug mt-1 whitespace-nowrap overflow-hidden text-ellipsis',
-                                isDark ? 'text-[#39FF14]' : 'text-[#1E7A0E]'
+                                isDark ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
                             )}
                             title={translation}
                         >
@@ -107,34 +97,52 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         </div>
                     )}
 
-                    {/* Bottom Row: Phonetic & Part of Speech (POS) - single line with ellipsis */}
-                    <div className="flex items-center gap-2 mt-1 overflow-hidden">
-                        <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-                            {phonetic && (
-                                <span
-                                    className={cn(
-                                        'font-mono text-[18px] px-2 py-0.5 rounded ml-0.5',
-                                        isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-700 bg-zinc-100'
-                                    )}
-                                >
-                                    /{phonetic}/
-                                </span>
-                            )}
+                    {/* Phonetic & Badges */}
+                    <div className="flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap">
+                        {phonetic && (
+                            <span
+                                className={cn(
+                                    'font-mono text-sm px-2 py-0.5 rounded ml-0.5 shrink-0 max-w-[42%] truncate',
+                                    isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-700 bg-zinc-100'
+                                )}
+                            >
+                                /{phonetic}/
+                            </span>
+                        )}
 
-                            {badges
-                                .filter((b) => b.type === 'pos' || b.type === 'other')
-                                .map((badge, i) => (
+                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                            {badges.map((badge, i) => {
+                                const badgeClass =
+                                    badge.type === 'pos'
+                                        ? isDark
+                                            ? 'bg-[#00F0FF]/20 text-[#00F0FF] border-[#00F0FF]/30'
+                                            : 'bg-[#007A8A]/10 text-[#007A8A] border-[#007A8A]/25'
+                                        : badge.type === 'level'
+                                          ? isDark
+                                              ? 'bg-[#FCEE0A]/20 text-[#FCEE0A] border-[#FCEE0A]/30'
+                                              : 'bg-[#B89300]/10 text-[#B89300] border-[#B89300]/25'
+                                          : badge.type === 'frequency'
+                                            ? isDark
+                                                ? 'bg-[#39FF14]/20 text-[#39FF14] border-[#39FF14]/35'
+                                                : 'bg-[#1B8E03]/10 text-[#1B8E03] border-[#1B8E03]/25'
+                                            : isDark
+                                              ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                                              : 'bg-zinc-100 text-zinc-600 border-zinc-200';
+
+                                return (
                                     <span
-                                        key={`bottom-${i}`}
+                                        key={`${badge.type}-${i}`}
                                         className={cn(
-                                            'px-1.5 py-0.5 rounded text-[14px] font-bold uppercase tracking-wider',
-                                            isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
+                                            'px-3 py-1 rounded-lg text-sm font-bold uppercase tracking-wider border shrink-0 max-w-[9rem] truncate',
+                                            badgeClass
                                         )}
+                                        title={badge.label}
                                     >
                                         {badge.label}
                                     </span>
-                                ))}
-                        </span>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>

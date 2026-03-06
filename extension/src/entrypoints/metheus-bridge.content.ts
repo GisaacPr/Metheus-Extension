@@ -119,6 +119,10 @@ export default defineContentScript({
         };
 
         const forwardCardCreateToWeb = (data: any, requestId: string) => {
+            // EXT-BUG1 FIX: Clear any existing retry interval for the same requestId
+            // to prevent leaked intervals when both flush and onMessage trigger for the same card
+            stopCardCreateRetries(requestId);
+
             let attempts = 0;
             const maxAttempts = 40;
 
