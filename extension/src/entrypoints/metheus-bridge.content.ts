@@ -1,3 +1,5 @@
+import { translateWithBrowserApi } from '@/services/browser-translation';
+
 /**
  * METHEUS BRIDGE
  *
@@ -364,6 +366,76 @@ export default defineContentScript({
                     word: event.data.word,
                     language: event.data.language,
                     status: event.data.status,
+                });
+            }
+
+            if (event.data?.type === 'METHEUS_TRANSLATE_REQUEST' && typeof event.data.requestId === 'string') {
+                const requestId = event.data.requestId;
+                const payload = event.data.payload || {};
+                const text = typeof payload.text === 'string' ? payload.text : '';
+                const sourceLang = typeof payload.sourceLang === 'string' ? payload.sourceLang : 'auto';
+                const targetLang = typeof payload.targetLang === 'string' ? payload.targetLang : 'en';
+
+                void (async () => {
+                    const browserNative = await translateWithBrowserApi(text, targetLang);
+                    if (browserNative) {
+                        window.postMessage(
+                            {
+                                type: 'METHEUS_TRANSLATE_RESPONSE',
+                                requestId,
+                                translated: browserNative,
+                                provider: 'browser-native',
+                                sourceLang,
+                                targetLang,
+                            },
+                            window.location.origin
+                        );
+                        return;
+                    }
+
+                    const backgroundResponse = await browser.runtime.sendMessage({
+                        type: 'METHEUS_TRANSLATE_REQUEST',
+                        payload: {
+                            text,
+                            sourceLang,
+                            targetLang,
+                        },
+                    });
+
+                    window.postMessage(
+                        {
+                            type: 'METHEUS_TRANSLATE_RESPONSE',
+                            requestId,
+                            translated:
+                                typeof backgroundResponse?.translated === 'string'
+                                    ? backgroundResponse.translated
+                                    : null,
+                            provider:
+                                typeof backgroundResponse?.provider === 'string'
+                                    ? backgroundResponse.provider
+                                    : 'none',
+                            sourceLang,
+                            targetLang,
+                            error:
+                                typeof backgroundResponse?.error === 'string'
+                                    ? backgroundResponse.error
+                                    : undefined,
+                        },
+                        window.location.origin
+                    );
+                })().catch((error) => {
+                    window.postMessage(
+                        {
+                            type: 'METHEUS_TRANSLATE_RESPONSE',
+                            requestId,
+                            translated: null,
+                            provider: 'none',
+                            sourceLang,
+                            targetLang,
+                            error: error instanceof Error ? error.message : 'Translation failed',
+                        },
+                        window.location.origin
+                    );
                 });
             }
 

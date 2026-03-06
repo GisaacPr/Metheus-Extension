@@ -1,42 +1,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { SettingsProvider } from '@metheus/common/settings';
 import { ExtensionSettingsStorage } from '../services/extension-settings-storage';
-
-const translationCache = new Map<string, string>();
-
-const extractGtxTranslatedText = (payload: any): string | null => {
-    const chunks = payload?.[0];
-    if (!Array.isArray(chunks)) {
-        return null;
-    }
-
-    const translated = chunks
-        .map((chunk: any) => (Array.isArray(chunk) ? chunk[0] : null))
-        .filter((part: any) => typeof part === 'string' && part.length > 0)
-        .join('');
-
-    return translated || null;
-};
-
-const translateViaGtx = async (text: string, sourceLang: string, targetLang: string): Promise<string | null> => {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
-
-    try {
-        const response = await fetch(url, {
-            method: 'GET',
-            signal: AbortSignal.timeout(8000),
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const payload: any = await response.json().catch(() => null);
-        return extractGtxTranslatedText(payload);
-    } catch {
-        return null;
-    }
-};
+import { translateWithExtensionProviders } from '../services/browser-translation';
 
 // Minimal i18n fallback (extension still has full i18n elsewhere).
 export const useTranslation = () => {
@@ -120,83 +85,10 @@ export const useTranslation = () => {
 };
 
 export const useGoogleTranslation = () => {
-    const pendingRequests = useRef<Map<string, Promise<string | null>>>(new Map());
-
-    const translateWithBrowser = async (text: string, targetLang: string): Promise<string | null> => {
-        // Local-first translation: use browser-native translation if available.
-        // This avoids consuming LN proxy quota and spreads load per-user.
-        try {
-            const anyWindow = window as any;
-
-            // Experimental Chrome AI Translator API (varies by version/flags)
-            // https://developer.chrome.com/docs/ai/translate/
-            // We support a couple of shapes seen in the wild.
-            const translatorFactory = anyWindow?.ai?.translator || anyWindow?.ai?.translation;
-            if (translatorFactory?.createTranslator) {
-                const translator = await translatorFactory.createTranslator({ targetLanguage: targetLang });
-                const out = await translator.translate(text);
-                return typeof out === 'string' ? out : null;
-            }
-
-            // Some builds expose navigator.translation
-            if (anyWindow?.navigator?.translation?.translate) {
-                const out = await anyWindow.navigator.translation.translate(text, { to: targetLang });
-                return typeof out === 'string' ? out : null;
-            }
-
-            return null;
-        } catch {
-            return null;
-        }
-    };
-
     return {
         translateText: async (text: string, targetLang: string, sourceLang?: string) => {
-            const normalizedText = text.trim();
-            if (!normalizedText) {
-                return null;
-            }
-
-            const normalizedSource = sourceLang || 'auto';
-            const cacheKey = `${normalizedSource}:${targetLang}:${normalizedText}`;
-
-            if (translationCache.has(cacheKey)) {
-                return translationCache.get(cacheKey)!;
-            }
-
-            if (pendingRequests.current.has(cacheKey)) {
-                return pendingRequests.current.get(cacheKey)!;
-            }
-
-            const requestPromise = (async (): Promise<string | null> => {
-                if (normalizedSource !== 'auto' && normalizedSource === targetLang) {
-                    return normalizedText;
-                }
-
-                // 1) Try local browser translation
-                const local = await translateWithBrowser(normalizedText, targetLang);
-                if (local) {
-                    translationCache.set(cacheKey, local);
-                    return local;
-                }
-
-                // 2) Try direct GTX endpoint (user IP)
-                const directGtx = await translateViaGtx(normalizedText, normalizedSource, targetLang);
-                if (directGtx) {
-                    translationCache.set(cacheKey, directGtx);
-                    return directGtx;
-                }
-
-                return null;
-            })();
-
-            pendingRequests.current.set(cacheKey, requestPromise);
-
-            try {
-                return await requestPromise;
-            } finally {
-                pendingRequests.current.delete(cacheKey);
-            }
+            const result = await translateWithExtensionProviders(text, targetLang, sourceLang);
+            return result.translated;
         },
     };
 };

@@ -73,6 +73,7 @@ import { getMetheusSyncService } from '@/services/metheus-sync';
 import { getMetheusDictionaryService } from '@/services/metheus-dictionary';
 import { getOnlineDictionaryService } from '@/services/online-dictionary';
 import { normalizeLangCode } from '@/services/language-utils';
+import { resolveIdentityTranslation, translateViaGtx } from '@/services/browser-translation';
 
 export default defineBackground(() => {
     if (!isFirefoxBuild) {
@@ -334,6 +335,36 @@ export default defineBackground(() => {
 
     // Also listen for internal messages (if sent via bridge/content script)
     browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: any) => {
+        if (message && message.type === 'METHEUS_TRANSLATE_REQUEST') {
+            const payload = message.payload || {};
+            const text = typeof payload.text === 'string' ? payload.text : '';
+            const sourceLang = typeof payload.sourceLang === 'string' ? payload.sourceLang : 'auto';
+            const targetLang = typeof payload.targetLang === 'string' ? payload.targetLang : 'en';
+
+            (async () => {
+                const identity = resolveIdentityTranslation(text, sourceLang, targetLang);
+                if (identity) {
+                    sendResponse({ translated: identity, provider: 'identity' });
+                    return;
+                }
+
+                const translated = await translateViaGtx(text, sourceLang, targetLang);
+                sendResponse({
+                    translated,
+                    provider: translated ? 'gtx-background' : 'none',
+                });
+            })().catch((error) => {
+                console.warn('[LN Background] Translation request failed', error);
+                sendResponse({
+                    translated: null,
+                    provider: 'none',
+                    error: error instanceof Error ? error.message : 'Translation failed',
+                });
+            });
+
+            return true;
+        }
+
         if (message && message.type === 'METHEUS_DELETE_WORD') {
             const { word, language } = message;
             const syncService = getMetheusSyncService(settings);

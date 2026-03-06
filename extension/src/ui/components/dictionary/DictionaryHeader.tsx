@@ -32,14 +32,14 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
         status >= 4
             ? isDark
                 ? 'text-[#39FF14]'
-                : 'text-[#1B8E03]'
+                : 'text-[#19A800] [text-shadow:0_0_16px_rgba(57,255,20,0.24)]'
             : status >= 1
               ? isDark
                   ? 'text-[#FCEE0A]'
-                  : 'text-[#B89300]'
+                  : 'text-[#C99400] [text-shadow:0_0_16px_rgba(252,238,10,0.22)]'
               : isDark
                 ? 'text-[#00F0FF]'
-                : 'text-[#007A8A]';
+                : 'text-[#007A8A] [text-shadow:0_0_12px_rgba(0,240,255,0.12)]';
 
     return (
         <div
@@ -102,7 +102,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         {phonetic && (
                             <span
                                 className={cn(
-                                    'font-mono text-sm px-2 py-0.5 rounded ml-0.5 shrink-0 max-w-[42%] truncate',
+                                    'font-mono text-[15px] sm:text-base px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl ml-0.5 shrink-0 max-w-[50%] truncate',
                                     isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-700 bg-zinc-100'
                                 )}
                             >
@@ -110,7 +110,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                             </span>
                         )}
 
-                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
                             {badges.map((badge, i) => {
                                 const badgeClass =
                                     badge.type === 'pos'
@@ -120,11 +120,11 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                                         : badge.type === 'level'
                                           ? isDark
                                               ? 'bg-[#FCEE0A]/20 text-[#FCEE0A] border-[#FCEE0A]/30'
-                                              : 'bg-[#B89300]/10 text-[#B89300] border-[#B89300]/25'
+                                              : 'bg-[#FCEE0A]/16 text-[#C99400] border-[#D8AC00]/35'
                                           : badge.type === 'frequency'
                                             ? isDark
                                                 ? 'bg-[#39FF14]/20 text-[#39FF14] border-[#39FF14]/35'
-                                                : 'bg-[#1B8E03]/10 text-[#1B8E03] border-[#1B8E03]/25'
+                                                : 'bg-[#39FF14]/12 text-[#19A800] border-[#19A800]/28'
                                             : isDark
                                               ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
                                               : 'bg-zinc-100 text-zinc-600 border-zinc-200';
@@ -133,7 +133,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                                     <span
                                         key={`${badge.type}-${i}`}
                                         className={cn(
-                                            'px-3 py-1 rounded-lg text-sm font-bold uppercase tracking-wider border shrink-0 max-w-[9rem] truncate',
+                                            'px-3.5 sm:px-4 py-1.5 rounded-xl text-[13px] sm:text-[14px] font-bold uppercase tracking-[0.08em] border shrink-0 max-w-[11rem] truncate',
                                             badgeClass
                                         )}
                                         title={badge.label}
