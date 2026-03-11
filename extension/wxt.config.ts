@@ -167,7 +167,9 @@ export default defineConfig({
                 commands,
                 host_permissions: ['<all_urls>'],
                 externally_connectable: {
-                    matches: ['https://metheus.app/*', 'http://localhost:*/*', 'http://127.0.0.1:*/*'],
+                    // Chrome match patterns do not allow explicit port wildcards; localhost/127.0.0.1
+                    // patterns without a port still cover local dev and are accepted by the Web Store.
+                    matches: ['https://metheus.app/*', 'http://localhost/*', 'http://127.0.0.1/*'],
                 },
             };
         }

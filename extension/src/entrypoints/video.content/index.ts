@@ -27,12 +27,8 @@ const excludeGlobs = [
     '*://www.metheus.app/*',
     'http://localhost/*',
     'https://localhost/*',
-    'http://localhost:*/*',
-    'https://localhost:*/*',
     'http://127.0.0.1/*',
     'https://127.0.0.1/*',
-    'http://127.0.0.1:*/*',
-    'https://127.0.0.1:*/*',
 ];
 
 if (import.meta.env.DEV) {

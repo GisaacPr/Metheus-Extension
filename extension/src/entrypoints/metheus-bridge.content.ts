@@ -4,7 +4,7 @@ import { translateWithBrowserApi } from '@/services/browser-translation';
  * METHEUS BRIDGE
  *
  * Takes the Extension ID and shouts it to the window so the Web App can hear it.
- * Runs on metheus.app, localhost, and 127.0.0.1 (any port, http/https)
+ * Runs on metheus.app, localhost, and 127.0.0.1 (http/https).
  */
 
 export default defineContentScript({
@@ -17,10 +17,6 @@ export default defineContentScript({
         'https://localhost/*',
         'http://127.0.0.1/*',
         'https://127.0.0.1/*',
-        'http://localhost:*/*',
-        'https://localhost:*/*',
-        'http://127.0.0.1:*/*',
-        'https://127.0.0.1:*/*',
     ],
     main() {
         const pendingImportStorageKey = 'metheusPendingYoutubeImport';
