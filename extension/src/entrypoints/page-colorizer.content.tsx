@@ -118,6 +118,8 @@ const SUBTITLE_FALLBACK_SELECTORS = [
     '[id*="Caption"]',
     '[data-testid*="subtitle"]',
     '[data-testid*="caption"]',
+    '[data-testid="lyrics-line"]',
+    '[data-testid*="lyrics"]',
     '[aria-live="polite"]',
     '[aria-live="assertive"]',
 ];

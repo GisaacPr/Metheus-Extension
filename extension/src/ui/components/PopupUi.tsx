@@ -19,6 +19,7 @@ import { useRequestingActiveTabPermission } from '../hooks/use-requesting-active
 import { isMobile } from 'react-device-detect';
 import { useSettingsProfileContext } from '@metheus/common/hooks/use-settings-profile-context';
 import { StyledEngineProvider } from '@mui/material/styles';
+import { openChromeSidePanel } from '../../services/open-side-panel';
 
 interface Props {
     commands: any;
@@ -183,9 +184,10 @@ export function PopupUi({ commands }: Props) {
         browser.tabs.create({ active: true, url });
     }, []);
 
-    const handleOpenSidePanel = useCallback(async () => {
-        // @ts-ignore
-        browser.sidePanel.open({ windowId: (await browser.windows.getLastFocused()).id });
+    const handleOpenSidePanel = useCallback(() => {
+        void openChromeSidePanel().catch((error) => {
+            console.error('[LN Popup] Failed to open side panel', error);
+        });
     }, []);
 
     const activeTabVideoSrc = useCallback(async (activeTabId: number): Promise<string | undefined> => {

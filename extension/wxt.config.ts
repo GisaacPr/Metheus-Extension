@@ -47,7 +47,7 @@ export default defineConfig({
     },
     manifest: ({ browser, mode }) => {
         let manifest: UserManifest = {
-            name: 'Metheus Extension: Language-learning with subtitles',
+            name: 'Metheus Extension: Language Immersion Engine',
             description: '__MSG_extensionDescription__',
             version: '1.0.1',
             action: { default_title: 'Metheus' },

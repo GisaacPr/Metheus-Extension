@@ -1,4 +1,5 @@
 import { Command, Message } from '@metheus/common';
+import { openChromeSidePanel } from '../../services/open-side-panel';
 
 /**
  * Handler that ONLY opens the side panel, never closes it.
@@ -14,10 +15,9 @@ export default class OpenSidePanelHandler {
     }
 
     handle(_command: Command<Message>, _sender: Browser.runtime.MessageSender) {
-        // Always open, never close
-        browser.windows
-            // @ts-ignore
-            .getLastFocused((window) => browser.sidePanel.open({ windowId: window.id }));
+        void openChromeSidePanel().catch((error) => {
+            console.error('[LN Background] Failed to open side panel', error);
+        });
 
         return false;
     }

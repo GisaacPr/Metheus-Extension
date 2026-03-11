@@ -1,5 +1,6 @@
 import { CloseSidePanelMessage, Command, ExtensionToAsbPlayerCommand, Message } from '@metheus/common';
 import TabRegistry from '../../services/tab-registry';
+import { openChromeSidePanel } from '../../services/open-side-panel';
 
 export default class ToggleSidePanelHandler {
     private readonly _tabRegistry: TabRegistry;
@@ -36,9 +37,9 @@ export default class ToggleSidePanelHandler {
         });
 
         if (!sidePanelOpen) {
-            browser.windows
-                // @ts-ignore
-                .getLastFocused((window) => browser.sidePanel.open({ windowId: window.id }));
+            void openChromeSidePanel().catch((error) => {
+                console.error('[LN Background] Failed to toggle side panel open', error);
+            });
         }
 
         return false;
