@@ -207,7 +207,6 @@ interface Props {
     pendingSyncCount?: number;
     knownWordCounts?: Record<string, number>;
     decks?: { id: string; name: string }[];
-    noteTypes?: { id: string; name: string }[];
 }
 
 // Filter out keys that look like '0', '1', ... as those are invalid
@@ -250,7 +249,6 @@ export default function SettingsForm({
     pendingSyncCount,
     knownWordCounts,
     decks,
-    noteTypes,
 }: Props) {
     const theme = useTheme();
     const smallScreen = useMediaQuery(theme.breakpoints.down(500)) && !forceVerticalTabs;
@@ -351,7 +349,6 @@ export default function SettingsForm({
                     pendingSyncCount={pendingSyncCount}
                     knownWordCounts={knownWordCounts}
                     decks={decks}
-                    noteTypes={noteTypes}
                 />
             </TabPanel>
             <TabPanel value={tabIndex} index={tabIndicesById['subtitle-appearance']} tabsOrientation={tabsOrientation}>

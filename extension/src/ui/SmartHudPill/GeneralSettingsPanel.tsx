@@ -26,26 +26,6 @@ const getSupportedLanguages = (i18nLang: string) =>
             ) || code,
     }));
 
-const SUPPORTED_NOTE_TYPES = ['STANDARD', 'CLOZE', 'LISTENING', 'SYNTAX'] as const;
-
-const sanitizeNoteTypes = (noteTypes: { id: string; name: string }[]) => {
-    const allowed = new Set(SUPPORTED_NOTE_TYPES);
-    const filtered = noteTypes
-        .map((nt) => ({ id: String(nt.id || '').toUpperCase(), name: nt.name || nt.id }))
-        .filter((nt) => allowed.has(nt.id as any));
-
-    if (filtered.length > 0) {
-        return filtered;
-    }
-
-    return [
-        { id: 'STANDARD', name: 'Standard' },
-        { id: 'CLOZE', name: 'Cloze' },
-        { id: 'LISTENING', name: 'Listening' },
-        { id: 'SYNTAX', name: 'Syntax' },
-    ];
-};
-
 // Icons
 const CloudDownloadIcon = () => (
     <svg
@@ -114,57 +94,6 @@ const StarIcon = () => (
     </svg>
 );
 
-const ClozeIcon = () => (
-    <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#c084fc"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <circle cx="12" cy="12" r="10"></circle>
-        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-        <path d="M12 17h.01"></path>
-    </svg>
-);
-
-const ListeningIcon = () => (
-    <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#34d399"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"></path>
-    </svg>
-);
-
-const SyntaxIcon = () => (
-    <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#fbbf24"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
-        <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
-        <path d="M10 9H8"></path>
-        <path d="M16 13H8"></path>
-        <path d="M16 17H8"></path>
-    </svg>
-);
-
 interface Props {
     settings: AsbplayerSettings;
     onSettingsChanged: (settings: Partial<AsbplayerSettings>) => void;
@@ -175,7 +104,6 @@ interface Props {
     onDeleteDictionary?: (langCode: string) => void;
     knownWordCounts?: Record<string, number>;
     decks?: { id: string; name: string }[];
-    noteTypes?: { id: string; name: string }[];
 }
 
 const GeneralSettingsPanel: React.FC<Props> = ({
@@ -187,10 +115,8 @@ const GeneralSettingsPanel: React.FC<Props> = ({
     onDeleteDictionary,
     knownWordCounts = {},
     decks = [],
-    noteTypes = [],
 }) => {
     const { t, i18n } = useTranslation();
-    const safeNoteTypes = sanitizeNoteTypes(noteTypes);
     const supportedLanguages = getSupportedLanguages(i18n.language);
 
     const handleThemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,49 +147,6 @@ const GeneralSettingsPanel: React.FC<Props> = ({
 
     const handleDeckIdChange = (event: SelectChangeEvent<string>) => {
         onSettingsChanged({ metheusTargetDeckId: event.target.value });
-    };
-
-    const handleNoteTypeChange = (event: SelectChangeEvent<string>) => {
-        onSettingsChanged({ metheusNoteType: event.target.value as any });
-    };
-
-    const getNoteTypeIcon = (type: string) => {
-        switch (type) {
-            case 'CLOZE':
-                return <ClozeIcon />;
-            case 'LISTENING':
-                return <ListeningIcon />;
-            case 'SYNTAX':
-                return <SyntaxIcon />;
-            default:
-                return <StarIcon />;
-        }
-    };
-
-    const getNoteTypeColor = (type: string) => {
-        switch (type) {
-            case 'CLOZE':
-                return '#c084fc';
-            case 'LISTENING':
-                return '#34d399';
-            case 'SYNTAX':
-                return '#fbbf24';
-            default:
-                return '#60a5fa';
-        }
-    };
-
-    const getNoteTypeLabel = (type: string) => {
-        switch (type) {
-            case 'CLOZE':
-                return t('settings.noteTypeCloze', { defaultValue: 'Cloze' });
-            case 'LISTENING':
-                return t('settings.noteTypeListening', { defaultValue: 'Listening' });
-            case 'SYNTAX':
-                return t('settings.noteTypeSyntax', { defaultValue: 'Syntax' });
-            default:
-                return t('settings.noteTypeStandard', { defaultValue: 'Standard' });
-        }
     };
 
     return (
@@ -454,36 +337,32 @@ const GeneralSettingsPanel: React.FC<Props> = ({
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                     {t('settings.noteType')}
                 </Typography>
-                <Select
-                    value={settings.metheusNoteType || 'STANDARD'}
-                    onChange={handleNoteTypeChange}
-                    fullWidth
-                    size="small"
-                    renderValue={(selected) => (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            {getNoteTypeIcon(selected)}
-                            <span style={{ color: getNoteTypeColor(selected) }}>{getNoteTypeLabel(selected)}</span>
-                        </Box>
-                    )}
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        px: 1.5,
+                        py: 1.25,
+                        borderRadius: 1.5,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'action.hover',
+                    }}
                 >
-                    {safeNoteTypes.length > 0
-                        ? safeNoteTypes.map((nt) => (
-                              <MenuItem key={nt.id} value={nt.id}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                      {getNoteTypeIcon(nt.id)}
-                                      <span style={{ color: getNoteTypeColor(nt.id) }}>{nt.name}</span>
-                                  </Box>
-                              </MenuItem>
-                          ))
-                        : ['STANDARD', 'CLOZE', 'LISTENING', 'SYNTAX'].map((type) => (
-                              <MenuItem key={type} value={type}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                      {getNoteTypeIcon(type)}
-                                      <span style={{ color: getNoteTypeColor(type) }}>{getNoteTypeLabel(type)}</span>
-                                  </Box>
-                              </MenuItem>
-                          ))}
-                </Select>
+                    <StarIcon />
+                    <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ color: '#60a5fa', fontWeight: 600 }}>
+                            {t('settings.noteTypeStandard', { defaultValue: 'Standard' })}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {t('settings.noteTypeReadonlyHelp', {
+                                defaultValue:
+                                    'Metheus mining now creates cards as Standard. Exercise evolution happens later inside the app.',
+                            })}
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
         </Box>
     );

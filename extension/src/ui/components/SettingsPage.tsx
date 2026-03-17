@@ -90,7 +90,6 @@ const SettingsPage = ({ settings, inTutorial, onSettingsChanged, settingsProvide
     const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
     const [knownWordCounts, setKnownWordCounts] = useState<Record<string, number>>({});
     const [decks, setDecks] = useState<{ id: string; name: string }[]>([]);
-    const [noteTypes, setNoteTypes] = useState<{ id: string; name: string }[]>([]);
     const syncService = useMemo(() => getMetheusSyncService(settingsProvider), [settingsProvider]);
 
     useEffect(() => {
@@ -107,11 +106,8 @@ const SettingsPage = ({ settings, inTutorial, onSettingsChanged, settingsProvide
             }
             setKnownWordCounts(counts);
 
-            // Get decks and note types from local cache (populated by Web App via bridge)
-            const decksList = syncService.getDecks();
-            const noteTypesList = syncService.getNoteTypes();
-            setDecks(decksList);
-            setNoteTypes(noteTypesList);
+            // Get decks from local cache (populated by Web App via bridge)
+            setDecks(syncService.getDecks());
         };
 
         fetchAll();
@@ -263,7 +259,6 @@ const SettingsPage = ({ settings, inTutorial, onSettingsChanged, settingsProvide
                         pendingSyncCount={pendingSyncCount}
                         knownWordCounts={knownWordCounts}
                         decks={decks}
-                        noteTypes={noteTypes}
                     />
                 </DialogContent>
             </Dialog>

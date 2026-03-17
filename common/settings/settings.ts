@@ -71,8 +71,8 @@ export interface MetheusSettings {
     /** Target language for colorization sync */
     readonly metheusTargetLanguage: string;
 
-    /** Note Type for card creation (STANDARD, CLOZE, LISTENING, SYNTAX) */
-    readonly metheusNoteType: 'STANDARD' | 'CLOZE' | 'LISTENING' | 'SYNTAX';
+    /** Metheus mining always enters through the STANDARD exercise entry point. */
+    readonly metheusNoteType: 'STANDARD';
 
     /** Keyboard shortcut to trigger dictionary lookup on any website (e.g., 'ctrl+D', 'alt+Click') */
     readonly metheusGlobalHoverShortcut: string;

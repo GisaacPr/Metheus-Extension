@@ -75,6 +75,8 @@ import { getOnlineDictionaryService } from '@/services/online-dictionary';
 import { normalizeLangCode } from '@/services/language-utils';
 import { resolveIdentityTranslation, translateViaGtx } from '@/services/browser-translation';
 
+const METHEUS_STANDARD_NOTE_TYPE = 'STANDARD' as const;
+
 export default defineBackground(() => {
     if (!isFirefoxBuild) {
         browser.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
@@ -464,11 +466,11 @@ export default defineBackground(() => {
             syncService
                 .waitForCache()
                 .then(async () => {
-                    const lnSettings = await settings.get(['metheusTargetDeckId', 'metheusNoteType']);
+                    const lnSettings = await settings.get(['metheusTargetDeckId']);
                     const card = {
                         fields: payload.fields || {},
                         deckId: payload.deckId || lnSettings.metheusTargetDeckId || '',
-                        noteTypeId: payload.noteTypeId || lnSettings.metheusNoteType || 'STANDARD',
+                        noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                         targetLanguage: payload.language || 'en',
                         createdAt: Date.now(),
                     };
@@ -543,6 +545,8 @@ export default defineBackground(() => {
                     if (typeof config.interfaceLanguage === 'string' && config.interfaceLanguage.length > 0) {
                         settingsUpdates.language = config.interfaceLanguage;
                     }
+
+                    settingsUpdates.metheusNoteType = METHEUS_STANDARD_NOTE_TYPE;
 
                     if (Object.keys(settingsUpdates).length > 0) {
                         await settings.set(settingsUpdates as any);
@@ -664,7 +668,7 @@ export default defineBackground(() => {
             return;
         }
 
-        const watchedKeys = ['metheusTargetDeckId', 'metheusTargetLanguage', 'metheusNoteType', 'language'];
+        const watchedKeys = ['metheusTargetDeckId', 'metheusTargetLanguage', 'language'];
         const changed = watchedKeys.some((key) => key in changes);
         if (!changed) {
             return;
@@ -680,7 +684,7 @@ export default defineBackground(() => {
             const payload = {
                 miningDeckId: changes.metheusTargetDeckId?.newValue,
                 targetLanguage: changes.metheusTargetLanguage?.newValue,
-                noteTypeId: changes.metheusNoteType?.newValue,
+                noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                 interfaceLanguage:
                     changes.language?.newValue || cachedLanguageMeta?.ln_cached_interface_language || undefined,
                 nativeLanguage: cachedLanguageMeta?.ln_cached_native_language || undefined,

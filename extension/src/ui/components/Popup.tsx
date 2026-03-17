@@ -92,7 +92,6 @@ const Popup = ({
     const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
     const [knownWordCounts, setKnownWordCounts] = useState<Record<string, number>>({});
     const [decks, setDecks] = useState<{ id: string; name: string }[]>([]);
-    const [noteTypes, setNoteTypes] = useState<{ id: string; name: string }[]>([]);
     const syncService = useMemo(() => getMetheusSyncService(settingsProvider), [settingsProvider]);
 
     useEffect(() => {
@@ -112,7 +111,6 @@ const Popup = ({
             setKnownWordCounts(counts);
 
             setDecks(syncService.getDecks());
-            setNoteTypes(syncService.getNoteTypes());
         };
 
         fetchAll();
@@ -283,7 +281,6 @@ const Popup = ({
                         pendingSyncCount={pendingSyncCount}
                         knownWordCounts={knownWordCounts}
                         decks={decks}
-                        noteTypes={noteTypes}
                     />
                 </Grid>
             </Stack>

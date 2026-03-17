@@ -123,7 +123,6 @@ export default function SidePanel({ settings, extension, onSettingsChanged }: Pr
     const [downloadingDictionaries, setDownloadingDictionaries] = useState<Record<string, number>>({});
     const [knownWordCounts, setKnownWordCounts] = useState<Record<string, number>>({});
     const [decks, setDecks] = useState<{ id: string; name: string }[]>([]);
-    const [noteTypes, setNoteTypes] = useState<{ id: string; name: string }[]>([]);
     const dictionaryService = useMemo(
         () => getMetheusDictionaryService(new SettingsProvider(new ExtensionSettingsStorage())),
         []
@@ -145,11 +144,8 @@ export default function SidePanel({ settings, extension, onSettingsChanged }: Pr
             }
             setKnownWordCounts(counts);
 
-            // Get decks and note types from local cache (populated by Web App via bridge)
-            const decksList = syncService.getDecks();
-            const noteTypesList = syncService.getNoteTypes();
-            setDecks(decksList);
-            setNoteTypes(noteTypesList);
+            // Get decks from local cache (populated by Web App via bridge)
+            setDecks(syncService.getDecks());
         };
 
         fetchAll();
@@ -1010,7 +1006,6 @@ export default function SidePanel({ settings, extension, onSettingsChanged }: Pr
                             onDeleteDictionary={handleDeleteDictionary}
                             knownWordCounts={knownWordCounts}
                             decks={decks}
-                            noteTypes={noteTypes}
                         />
                     </Box>
                 )}

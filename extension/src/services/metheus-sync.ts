@@ -58,13 +58,8 @@ export interface MetheusBridgeConfig {
     vocabulary?: KnownWord[] | Record<string, KnownWord>;
 }
 
-const SUPPORTED_NOTE_TYPES = new Set(['STANDARD', 'CLOZE', 'LISTENING', 'SYNTAX']);
-const DEFAULT_NOTE_TYPES = [
-    { id: 'STANDARD', name: 'STANDARD' },
-    { id: 'CLOZE', name: 'CLOZE' },
-    { id: 'LISTENING', name: 'LISTENING' },
-    { id: 'SYNTAX', name: 'SYNTAX' },
-];
+const SUPPORTED_NOTE_TYPES = new Set(['STANDARD']);
+const DEFAULT_NOTE_TYPES = [{ id: 'STANDARD', name: 'Standard' }];
 
 export class MetheusSyncService {
     private readonly _settingsProvider: SettingsProvider;
@@ -75,7 +70,7 @@ export class MetheusSyncService {
 
     // Config cache (received from Web App via bridge)
     private _cachedDecks: { id: string; name: string }[] = [{ id: 'default', name: 'Default' }];
-    private _cachedNoteTypes: { id: string; name: string }[] = [{ id: 'STANDARD', name: 'Standard' }];
+    private _cachedNoteTypes: { id: string; name: string }[] = [...DEFAULT_NOTE_TYPES];
     private _cachedNativeLanguage: string = 'es';
     private _cachedTargetLanguage: string = 'en';
     private _cachedMiningDeckId: string = '';
@@ -642,16 +637,6 @@ export class MetheusSyncService {
     /**
     // REMOVED: testConnection() — was dead code calling API routes that don't exist.
     // Connection status is determined by the bridge (EXTENSION_DETECTED message).
-
-    // ─── CONFIG CACHE (Decks, NoteTypes — received from Web App via Bridge) ───
-
-    private _cachedDecks: { id: string; name: string }[] = [];
-    private _cachedNoteTypes: { id: string; name: string }[] = [
-        { id: 'STANDARD', name: 'STANDARD' },
-        { id: 'CLOZE', name: 'CLOZE' },
-        { id: 'LISTENING', name: 'LISTENING' },
-        { id: 'SYNTAX', name: 'SYNTAX' },
-    ];
 
     /**
      * Update config received from Web App via bridge

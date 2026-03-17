@@ -16,6 +16,8 @@ import ScopedCssBaseline from '@mui/material/ScopedCssBaseline';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 
+const METHEUS_STANDARD_NOTE_TYPE = 'STANDARD' as const;
+
 interface DictionaryPopupWrapperProps {
     word: string;
     sentence: string;
@@ -332,11 +334,7 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
                 details?: string;
             }
         ) => {
-            const settings = await settingsProvider.get([
-                'metheusTargetDeckId',
-                'metheusTargetLanguage',
-                'metheusNoteType',
-            ]);
+            const settings = await settingsProvider.get(['metheusTargetDeckId', 'metheusTargetLanguage']);
             const lang = settings.metheusTargetLanguage || 'en';
             const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             const activeVideoForMediaCapture = document.querySelector('video') as HTMLVideoElement | null;
@@ -405,7 +403,7 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
                                 definition: definition,
                                 language: lang,
                                 deckId: settings.metheusTargetDeckId,
-                                noteTypeId: settings.metheusNoteType || 'STANDARD',
+                                noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                                 translations: entry.translations,
                                 wordTranslation: metadata?.wordTranslation,
                                 definitionTranslation: metadata?.definitionTranslation,
@@ -535,7 +533,7 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
                     payload: {
                         fields: cardFields,
                         deckId: settings.metheusTargetDeckId,
-                        noteTypeId: settings.metheusNoteType || 'STANDARD',
+                        noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                         language: lang,
                         requestId,
                     },

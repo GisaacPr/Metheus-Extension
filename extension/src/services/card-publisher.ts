@@ -12,6 +12,8 @@ import { SettingsProvider } from '@metheus/common/settings';
 import { v4 as uuidv4 } from 'uuid';
 import { getMetheusSyncService } from '@/services/metheus-sync';
 
+const METHEUS_STANDARD_NOTE_TYPE = 'STANDARD' as const;
+
 export class CardPublisher {
     private readonly _settingsProvider: SettingsProvider;
     bulkExportCancelled = false;
@@ -87,9 +89,8 @@ export class CardPublisher {
             'metheusEnabled',
             'metheusTargetDeckId',
             'metheusTargetLanguage',
-            'metheusNoteType',
         ]);
-        const { metheusEnabled, metheusTargetDeckId, metheusTargetLanguage, metheusNoteType } = settings;
+        const { metheusEnabled, metheusTargetDeckId, metheusTargetLanguage } = settings;
 
         if (!metheusEnabled) {
             throw new Error('Metheus integration is disabled. Enable it in extension settings.');
@@ -167,7 +168,7 @@ export class CardPublisher {
                         contextAudioUrl: audioBase64Length >= 1024 ? audioDataUrl : '',
                     },
                     deckId: metheusTargetDeckId || '',
-                    noteTypeId: metheusNoteType || 'STANDARD',
+                    noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                     targetLanguage: metheusTargetLanguage || 'en',
                     createdAt: Date.now(),
                 },
@@ -201,9 +202,8 @@ export class CardPublisher {
         const settings = await this._settingsProvider.get([
             'metheusTargetDeckId',
             'metheusTargetLanguage',
-            'metheusNoteType',
         ]);
-        const { metheusTargetDeckId, metheusTargetLanguage, metheusNoteType } = settings;
+        const { metheusTargetDeckId, metheusTargetLanguage } = settings;
 
         try {
             const syncService = getMetheusSyncService(this._settingsProvider);
@@ -274,7 +274,7 @@ export class CardPublisher {
                         contextAudioUrl: audioBase64Length >= 1024 ? audioDataUrl : '',
                     },
                     deckId: metheusTargetDeckId || '',
-                    noteTypeId: metheusNoteType || 'STANDARD',
+                    noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                     targetLanguage: metheusTargetLanguage || 'en',
                     createdAt: Date.now(),
                 },

@@ -11,6 +11,8 @@ import { Command, Message } from '@metheus/common';
 import { SettingsProvider } from '@metheus/common/settings';
 import { ExtensionSettingsStorage } from '@/services/extension-settings-storage';
 
+const METHEUS_STANDARD_NOTE_TYPE = 'STANDARD' as const;
+
 interface MetheusSaveCardMessage extends Message {
     command: 'metheus-save-card';
     data: {
@@ -77,9 +79,9 @@ export default class MetheusSaveCardHandler {
         try {
             console.log('[LN Handler] _saveCard via mochila, word:', data.word);
 
-            const settings = await this.settings.get(['metheusTargetDeckId', 'metheusNoteType']);
+            const settings = await this.settings.get(['metheusTargetDeckId']);
 
-            const { metheusTargetDeckId, metheusNoteType } = settings;
+            const { metheusTargetDeckId } = settings;
 
             const { getMetheusSyncService } = await import('@/services/metheus-sync');
             const syncService = getMetheusSyncService(this.settings);
@@ -128,7 +130,7 @@ export default class MetheusSaveCardHandler {
                         frontAudioUrl: data.audioUrl || '',
                     },
                     deckId: data.deckId || metheusTargetDeckId || '',
-                    noteTypeId: data.noteTypeId || metheusNoteType || 'STANDARD',
+                    noteTypeId: METHEUS_STANDARD_NOTE_TYPE,
                     targetLanguage: data.language || 'en',
                     createdAt: data.timestamp || Date.now(),
                 },
