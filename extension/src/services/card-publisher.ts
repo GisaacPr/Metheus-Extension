@@ -199,10 +199,7 @@ export class CardPublisher {
      * Bulk export via Mochila — same as single export but for batch operations.
      */
     private async _exportCardBulk(card: CardModel, src: string | undefined, tabId: number) {
-        const settings = await this._settingsProvider.get([
-            'metheusTargetDeckId',
-            'metheusTargetLanguage',
-        ]);
+        const settings = await this._settingsProvider.get(['metheusTargetDeckId', 'metheusTargetLanguage']);
         const { metheusTargetDeckId, metheusTargetLanguage } = settings;
 
         try {
