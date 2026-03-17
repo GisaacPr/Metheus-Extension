@@ -64,6 +64,7 @@ const fetchDataForLanguageOnDemand = (language: string): Promise<VideoData> => {
 };
 
 const globalStateProvider = new ExtensionGlobalStateProvider();
+const REQUEST_SUBTITLES_MIN_INTERVAL_MS = 4000;
 
 export default class VideoDataSyncController {
     private readonly _context: Binding;
@@ -81,6 +82,8 @@ export default class VideoDataSyncController {
     private _autoSyncAttempted: boolean = false;
     private _dataReceivedListener?: (event: Event) => void;
     private _isTutorial: boolean;
+    private _requestSubtitlesInFlight: boolean = false;
+    private _lastRequestSubtitlesAt: number = 0;
 
     constructor(context: Binding, settings: SettingsProvider) {
         this._context = context;
@@ -138,6 +141,15 @@ export default class VideoDataSyncController {
     }
 
     async requestSubtitles() {
+        const now = Date.now();
+        if (this._requestSubtitlesInFlight) {
+            return;
+        }
+
+        if (now - this._lastRequestSubtitlesAt < REQUEST_SUBTITLES_MIN_INTERVAL_MS) {
+            return;
+        }
+
         if (!this._context.hasPageScript) {
             return;
         }
@@ -148,27 +160,34 @@ export default class VideoDataSyncController {
             return;
         }
 
-        this._syncedData = undefined;
-        this._autoSyncAttempted = false;
+        this._requestSubtitlesInFlight = true;
+        this._lastRequestSubtitlesAt = now;
 
-        if (!this._dataReceivedListener) {
-            this._dataReceivedListener = (event: Event) => {
-                const data = (event as CustomEvent).detail as VideoData;
-                this._setSyncedData(data);
-            };
-            document.addEventListener('asbplayer-synced-data', this._dataReceivedListener, false);
-        }
+        try {
+            this._syncedData = undefined;
+            this._autoSyncAttempted = false;
 
-        if (pageDelegate.config.key === 'youtube') {
-            const targetTranslationLanguageCodes =
-                (await this._settings.getSingle('streamingPages')).youtube.targetLanguages ?? [];
-            let payload = { targetTranslationLanguageCodes };
-            if (typeof cloneInto === 'function') {
-                payload = cloneInto(payload, document.defaultView);
+            if (!this._dataReceivedListener) {
+                this._dataReceivedListener = (event: Event) => {
+                    const data = (event as CustomEvent).detail as VideoData;
+                    this._setSyncedData(data);
+                };
+                document.addEventListener('asbplayer-synced-data', this._dataReceivedListener, false);
             }
-            document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data', { detail: payload }));
-        } else {
-            document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data'));
+
+            if (pageDelegate.config.key === 'youtube') {
+                const targetTranslationLanguageCodes =
+                    (await this._settings.getSingle('streamingPages')).youtube.targetLanguages ?? [];
+                let payload = { targetTranslationLanguageCodes };
+                if (typeof cloneInto === 'function') {
+                    payload = cloneInto(payload, document.defaultView);
+                }
+                document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data', { detail: payload }));
+            } else {
+                document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data'));
+            }
+        } finally {
+            this._requestSubtitlesInFlight = false;
         }
     }
 

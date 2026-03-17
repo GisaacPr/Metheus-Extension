@@ -23,6 +23,8 @@ export default defineContentScript({
         const pendingCardStorageKey = 'metheusPendingCardCreates';
         const pendingYoutubeImportRetries = new Map<string, number>();
         const pendingCardCreateRetries = new Map<string, number>();
+        const youtubeImportRetryIntervalMs = 1000;
+        const youtubeImportMaxAttempts = 12;
 
         const stopYoutubeImportRetries = (requestId: string) => {
             const intervalId = pendingYoutubeImportRetries.get(requestId);
@@ -33,9 +35,15 @@ export default defineContentScript({
         };
 
         const forwardYoutubeImportToWeb = (payload: any, requestId?: string) => {
+            if (!payload?.youtubeUrl || typeof payload.youtubeUrl !== 'string') {
+                return;
+            }
+
             const effectiveRequestId = requestId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             let attempts = 0;
-            const maxAttempts = 20;
+
+            // Avoid duplicate retry loops when the same request is flushed/replayed.
+            stopYoutubeImportRetries(effectiveRequestId);
 
             const post = () => {
                 attempts += 1;
@@ -48,7 +56,7 @@ export default defineContentScript({
                     window.location.origin
                 );
 
-                if (attempts >= maxAttempts) {
+                if (attempts >= youtubeImportMaxAttempts) {
                     console.warn('[Metheus Extension] YouTube import ACK timeout; stopping retries', {
                         requestId: effectiveRequestId,
                         attempts,
@@ -58,7 +66,7 @@ export default defineContentScript({
             };
 
             post();
-            const intervalId = window.setInterval(post, 500);
+            const intervalId = window.setInterval(post, youtubeImportRetryIntervalMs);
             pendingYoutubeImportRetries.set(effectiveRequestId, intervalId);
         };
 

@@ -27,7 +27,7 @@ interface Props {
 
 interface YoutubeTransferCandidate {
     youtubeUrl: string;
-    subtitlesSrt: string;
+    subtitlesSrt?: string;
 }
 
 interface TabRegistryVideoElement {
@@ -255,19 +255,21 @@ export function PopupUi({ commands }: Props) {
             const subtitles = trackOneSubtitles(response?.subtitles || []).filter(
                 (subtitle: any) => String(subtitle?.text ?? '').trim() !== ''
             );
-            if (subtitles.length === 0) {
-                console.info('[LN Popup] YouTube transfer disabled: no subtitles available for selected track', {
-                    tabId: activeTab.id,
-                    src,
-                });
-                setYoutubeTransferCandidate(undefined);
-                return undefined;
-            }
-
             const candidate = {
                 youtubeUrl: activeTab.url,
-                subtitlesSrt: subtitlesToSrt(subtitles),
+                subtitlesSrt: subtitles.length > 0 ? subtitlesToSrt(subtitles) : undefined,
             };
+
+            if (subtitles.length === 0) {
+                console.info(
+                    '[LN Popup] YouTube transfer proceeding without local subtitles; web will extract full tracks',
+                    {
+                        tabId: activeTab.id,
+                        src,
+                    }
+                );
+            }
+
             setYoutubeTransferCandidate(candidate);
             return candidate;
         } catch (e) {
@@ -284,7 +286,7 @@ export function PopupUi({ commands }: Props) {
     useEffect(() => {
         const intervalId = window.setInterval(() => {
             void refreshYoutubeTransferCandidate();
-        }, 1000);
+        }, 5000);
 
         const onTabActivated = () => void refreshYoutubeTransferCandidate();
         const onTabUpdated = () => void refreshYoutubeTransferCandidate();
