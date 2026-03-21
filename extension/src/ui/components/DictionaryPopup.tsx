@@ -269,7 +269,10 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     const { translateText } = useGoogleTranslation();
     const { speak, state } = useTTS({ language: entry?.language || 'en' });
     const isSpeakingWord = state.isPlaying;
-    const contextAnchorWord = useMemo(() => normalizeLookupWord(word) || normalizeLookupWord(requestedWord || word), [word, requestedWord]);
+    const contextAnchorWord = useMemo(
+        () => normalizeLookupWord(word) || normalizeLookupWord(requestedWord || word),
+        [word, requestedWord]
+    );
 
     useEffect(() => {
         setContextTranslation(null);
@@ -907,9 +910,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
             }))
             .filter(
                 (item) =>
-                    item.label.length > 0 &&
-                    item.value.length > 0 &&
-                    !['ai_source', 'ai_confidence'].includes(item.key)
+                    item.label.length > 0 && item.value.length > 0 && !['ai_source', 'ai_confidence'].includes(item.key)
             );
 
         const seenRowKeys = new Set<string>();
@@ -1108,7 +1109,12 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                             density === 'compact' ? 'p-8 min-h-[220px]' : 'p-12 min-h-[300px]'
                         )}
                     >
-                        <Loader2 className={cn('animate-spin text-[#00F0FF]', density === 'compact' ? 'w-8 h-8' : 'w-10 h-10')} />
+                        <Loader2
+                            className={cn(
+                                'animate-spin text-[#00F0FF]',
+                                density === 'compact' ? 'w-8 h-8' : 'w-10 h-10'
+                            )}
+                        />
                         <p className={cn('text-zinc-500', density === 'compact' ? 'text-[0.95em]' : 'text-[1em]')}>
                             {t('dictionary.popup.searching')}
                         </p>
@@ -1208,7 +1214,12 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                             {/* Online enrichment indicator */}
                             {isEnriching && (
                                 <div className={cn('flex-shrink-0 py-1', density === 'compact' ? 'px-4' : 'px-8')}>
-                                    <div className={cn('flex items-center gap-2 text-zinc-400', density === 'compact' ? 'text-[10px]' : 'text-[11px]')}>
+                                    <div
+                                        className={cn(
+                                            'flex items-center gap-2 text-zinc-400',
+                                            density === 'compact' ? 'text-[10px]' : 'text-[11px]'
+                                        )}
+                                    >
                                         <Loader2 className="w-3 h-3 animate-spin" />
                                         <span>{t('dictionary.popup.enriching') || 'Fetching more...'}</span>
                                     </div>
@@ -1269,13 +1280,25 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                     density === 'compact' ? 'w-14 h-14' : 'w-20 h-20'
                                 )}
                             >
-                                <Search className={cn('text-zinc-300', density === 'compact' ? 'w-7 h-7' : 'w-10 h-10')} />
+                                <Search
+                                    className={cn('text-zinc-300', density === 'compact' ? 'w-7 h-7' : 'w-10 h-10')}
+                                />
                             </div>
                             <div className="space-y-2">
-                                <p className={cn('font-semibold', density === 'compact' ? 'text-[1em]' : 'text-[1.125em]')}>
+                                <p
+                                    className={cn(
+                                        'font-semibold',
+                                        density === 'compact' ? 'text-[1em]' : 'text-[1.125em]'
+                                    )}
+                                >
                                     {t('dictionary.popup.no_def_title')}
                                 </p>
-                                <p className={cn('text-zinc-500', density === 'compact' ? 'text-[0.85em]' : 'text-[0.9em]')}>
+                                <p
+                                    className={cn(
+                                        'text-zinc-500',
+                                        density === 'compact' ? 'text-[0.85em]' : 'text-[0.9em]'
+                                    )}
+                                >
                                     {t('dictionary.popup.no_def_desc', { word: requestedWord || word })}
                                 </p>
                             </div>
@@ -1289,7 +1312,9 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         disabled={isDefiningWithAi}
                                         className={cn(
                                             'inline-flex items-center gap-2 rounded-xl font-semibold transition-colors',
-                                            density === 'compact' ? 'px-3 py-2 text-[0.82em]' : 'px-4 py-2 text-[0.9em]',
+                                            density === 'compact'
+                                                ? 'px-3 py-2 text-[0.82em]'
+                                                : 'px-4 py-2 text-[0.9em]',
                                             isDefiningWithAi
                                                 ? 'bg-zinc-800/50 text-zinc-400 cursor-not-allowed'
                                                 : 'bg-[#00F0FF] text-zinc-950 hover:bg-[#7af7ff]'
@@ -1304,9 +1329,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                             ? t('dictionary.popup.ai_defining')
                                             : t('dictionary.popup.ai_define')}
                                     </button>
-                                    {aiDefineError && (
-                                        <p className="text-[0.85em] text-amber-400">{aiDefineError}</p>
-                                    )}
+                                    {aiDefineError && <p className="text-[0.85em] text-amber-400">{aiDefineError}</p>}
                                 </div>
                             )}
                         </div>

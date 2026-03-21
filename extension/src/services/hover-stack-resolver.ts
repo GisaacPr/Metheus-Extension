@@ -105,7 +105,8 @@ const rankDefinitionsByContext = (definitions: any[], contextText: string, langu
     }
 
     const scored = definitions.map((definition) => {
-        const corpus = `${definition.meaning} ${(definition.examples || []).map((example: any) => example.sentence).join(' ')}`.toLowerCase();
+        const corpus =
+            `${definition.meaning} ${(definition.examples || []).map((example: any) => example.sentence).join(' ')}`.toLowerCase();
         let score = 0;
         for (const token of contextTokens) {
             if (token.length >= 2 && corpus.includes(token)) {
@@ -219,9 +220,7 @@ export async function resolveHoverStack(
     }
 
     const settings = (await settingsProvider.getAll()) as Record<string, any>;
-    const sourceLanguage = normalizeLanguageCode(
-        params.sourceLanguage || settings.metheusTargetLanguage || 'en'
-    );
+    const sourceLanguage = normalizeLanguageCode(params.sourceLanguage || settings.metheusTargetLanguage || 'en');
     const targetLanguage = normalizeLanguageCode(
         params.targetLanguage ||
             settings.ln_cached_native_language ||
@@ -298,7 +297,9 @@ export async function resolveHoverStack(
     const localSynonyms = extractLocalSynonyms(rankedDefinitions);
 
     const [translatedWord, ...translatedSynonymsRaw] = await Promise.all(
-        [lookupWord, ...localSynonyms].map((text) => translateCachedText(sourceLanguage, targetLanguage, text, 'hover-stack'))
+        [lookupWord, ...localSynonyms].map((text) =>
+            translateCachedText(sourceLanguage, targetLanguage, text, 'hover-stack')
+        )
     );
     const translatedSynonyms = translatedSynonymsRaw.filter((value): value is string => Boolean(value));
 

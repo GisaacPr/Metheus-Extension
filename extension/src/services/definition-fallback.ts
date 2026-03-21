@@ -29,7 +29,12 @@ async function computeStableHash(value: string): Promise<string> {
     return hashCache.get(normalized)!;
 }
 
-function buildLookupKey(sourceLanguage: string, targetLanguage: string, lookupText: string, contextHash: string): string {
+function buildLookupKey(
+    sourceLanguage: string,
+    targetLanguage: string,
+    lookupText: string,
+    contextHash: string
+): string {
     return [
         normalizeLanguageCode(sourceLanguage),
         normalizeLanguageCode(targetLanguage),
@@ -54,9 +59,7 @@ function toUnifiedEntry(lookupText: string, sourceLanguage: string, result: Fall
         word: sanitizeCacheText(lookupText),
         phonetic: undefined,
         badges: [],
-        linguisticData: [
-            ...(result.lemma ? [{ label: 'Lemma', value: result.lemma, key: 'lemma' }] : []),
-        ],
+        linguisticData: [...(result.lemma ? [{ label: 'Lemma', value: result.lemma, key: 'lemma' }] : [])],
         definitions: [
             {
                 index: 1,
@@ -78,7 +81,10 @@ function toUnifiedEntry(lookupText: string, sourceLanguage: string, result: Fall
     };
 }
 
-async function buildCacheEntry(request: FallbackRequest, response: FallbackResponse): Promise<AiDefinitionFallbackCacheEntry> {
+async function buildCacheEntry(
+    request: FallbackRequest,
+    response: FallbackResponse
+): Promise<AiDefinitionFallbackCacheEntry> {
     const [lookupHash, contextHash] = await Promise.all([
         computeStableHash(normalizeMeaningText(request.lookupText)),
         computeStableHash(normalizePhraseText(request.contextText)),
@@ -100,7 +106,9 @@ async function buildCacheEntry(request: FallbackRequest, response: FallbackRespo
         lemma: response.lemma,
         bestMeaning: sanitizeCacheText(response.bestMeaning),
         shortDefinition: sanitizeCacheText(response.shortDefinition),
-        translations: Array.from(new Set((response.translations || []).map((item) => sanitizeCacheText(item)).filter(Boolean))),
+        translations: Array.from(
+            new Set((response.translations || []).map((item) => sanitizeCacheText(item)).filter(Boolean))
+        ),
         confidence: response.confidence,
         mode: request.mode,
         source: 'ai-fallback',

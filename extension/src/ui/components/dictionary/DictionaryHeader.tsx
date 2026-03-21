@@ -54,10 +54,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
 
         return { normalized, indexMap };
     };
-    const renderHighlightedContext = (
-        fullText: string,
-        candidates: string[] = []
-    ) => {
+    const renderHighlightedContext = (fullText: string, candidates: string[] = []) => {
         const rawText = String(fullText || '').trim();
         const markerMatch = rawText.match(/\[\[\[\s*(.*?)\s*\]\]\]/);
         if (markerMatch && markerMatch.index !== undefined) {
@@ -200,7 +197,9 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                     <div className={cn('flex flex-wrap items-center', isCompact ? 'gap-2' : 'gap-2 sm:gap-3')}>
                         <h2
                             className={cn(
-                                isCompact ? 'text-[24px] font-black tracking-tight truncate' : 'text-[32px] sm:text-[40px] font-black tracking-tight truncate',
+                                isCompact
+                                    ? 'text-[24px] font-black tracking-tight truncate'
+                                    : 'text-[32px] sm:text-[40px] font-black tracking-tight truncate',
                                 headwordColorClass
                             )}
                         >
@@ -227,12 +226,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         >
                             {isSpeaking ? (
                                 <span className="animate-pulse">
-                                    <Volume2
-                                        className={cn(
-                                            'fill-current',
-                                            isTextSurface ? 'w-5 h-5' : 'w-8 h-8'
-                                        )}
-                                    />
+                                    <Volume2 className={cn('fill-current', isTextSurface ? 'w-5 h-5' : 'w-8 h-8')} />
                                 </span>
                             ) : (
                                 <Volume2 className={isTextSurface ? 'w-5 h-5' : 'w-8 h-8'} />

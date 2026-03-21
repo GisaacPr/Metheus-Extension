@@ -19,7 +19,11 @@ export const DictionaryCandidateStack: React.FC<DictionaryCandidateStackProps> =
     density = 'comfortable',
 }) => {
     const visibleCandidates = useMemo(
-        () => Array.from(new Set((candidates || []).map((candidate) => sanitizeText(candidate)).filter(Boolean))).slice(0, 4),
+        () =>
+            Array.from(new Set((candidates || []).map((candidate) => sanitizeText(candidate)).filter(Boolean))).slice(
+                0,
+                4
+            ),
         [candidates]
     );
 

@@ -495,7 +495,7 @@ const InformationSettingsTab: React.FC<Props> = ({
                                         component="p"
                                         sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}
                                     >
-{`Metheus is licensed under the AGPLv3 License.
+                                        {`Metheus is licensed under the AGPLv3 License.
 Copyright (c) ${metheusCopyrightYears} Metheus
 
 ---

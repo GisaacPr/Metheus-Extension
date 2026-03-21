@@ -196,9 +196,12 @@ const italianProfile: LemmaProfile = {
             candidates.add(`${word.slice(0, -4)}ere`);
             candidates.add(`${word.slice(0, -4)}ire`);
         }
-        if (word.endsWith('ati') || word.endsWith('ata') || word.endsWith('ato')) candidates.add(`${word.slice(0, -3)}are`);
-        if (word.endsWith('uti') || word.endsWith('uta') || word.endsWith('uto')) candidates.add(`${word.slice(0, -3)}ere`);
-        if (word.endsWith('iti') || word.endsWith('ita') || word.endsWith('ito')) candidates.add(`${word.slice(0, -3)}ire`);
+        if (word.endsWith('ati') || word.endsWith('ata') || word.endsWith('ato'))
+            candidates.add(`${word.slice(0, -3)}are`);
+        if (word.endsWith('uti') || word.endsWith('uta') || word.endsWith('uto'))
+            candidates.add(`${word.slice(0, -3)}ere`);
+        if (word.endsWith('iti') || word.endsWith('ita') || word.endsWith('ito'))
+            candidates.add(`${word.slice(0, -3)}ire`);
         if (word.endsWith('i') && word.length > 3) {
             candidates.add(`${word.slice(0, -1)}o`);
             candidates.add(`${word.slice(0, -1)}a`);

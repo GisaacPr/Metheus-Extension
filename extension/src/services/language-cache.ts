@@ -207,9 +207,8 @@ export async function getCachedPhraseTranslation(
     sourceFingerprint: string
 ): Promise<PhraseTranslationCacheEntry | null> {
     return (
-        (await db.getPhraseTranslationCache(
-        buildPhraseKey(sourceLanguage, targetLanguage, text, sourceFingerprint)
-        )) || null
+        (await db.getPhraseTranslationCache(buildPhraseKey(sourceLanguage, targetLanguage, text, sourceFingerprint))) ||
+        null
     );
 }
 

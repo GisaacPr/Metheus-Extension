@@ -28,12 +28,7 @@ export interface HoverSenseCandidate {
     shortDefinition?: string;
     translations: string[];
     examples: string[];
-    source:
-        | 'local-translation'
-        | 'online-translation'
-        | 'translated-synonym'
-        | 'cached-lexeme'
-        | 'ai-fallback';
+    source: 'local-translation' | 'online-translation' | 'translated-synonym' | 'cached-lexeme' | 'ai-fallback';
     lemma: string | null;
     matchedVariant: string | null;
     pos: string | null;

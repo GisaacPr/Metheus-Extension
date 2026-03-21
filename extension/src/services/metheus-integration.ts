@@ -256,8 +256,7 @@ export async function initializeMetheus(
                     return;
                 }
 
-                const relatedTarget =
-                    event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;
+                const relatedTarget = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;
                 const toWord = relatedTarget?.closest('.ln-word') as HTMLElement | null;
                 if (toWord && toWord !== fromWord) {
                     _lastHoveredLnWord = toWord;

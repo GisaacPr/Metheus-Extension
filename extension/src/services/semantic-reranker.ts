@@ -50,11 +50,7 @@ const sanitizeText = (value?: string | null): string =>
         .replace(/\s+/g, ' ')
         .trim();
 
-const normalizeLanguage = (value?: string | null): string =>
-    (value || '')
-        .trim()
-        .toLowerCase()
-        .split('-')[0];
+const normalizeLanguage = (value?: string | null): string => (value || '').trim().toLowerCase().split('-')[0];
 
 const normalizeEmbeddingInput = (value: string): string => sanitizeText(value).slice(0, 1200);
 

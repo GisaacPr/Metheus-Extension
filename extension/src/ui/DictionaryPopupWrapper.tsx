@@ -179,7 +179,10 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
             const wordTranslations = uniqueNonEmpty(entry.translations || []);
             return (entry.definitions || []).flatMap((definition, definitionIndex) => {
                 const meaning = sanitizeText(definition.meaning);
-                const examples = uniqueNonEmpty((definition.examples || []).map((example) => example.sentence)).slice(0, 3);
+                const examples = uniqueNonEmpty((definition.examples || []).map((example) => example.sentence)).slice(
+                    0,
+                    3
+                );
                 const translations = wordTranslations.length > 0 ? wordTranslations : [meaning];
                 return translations.slice(0, 4).map((translation, translationIndex) => ({
                     senseKey: `def:${definitionIndex}:${translationIndex}`,
@@ -412,7 +415,15 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
             console.log(`[PopupWrapper] No entry found for '${w}', returning null`);
             return null;
         },
-        [applySenseResolution, isOpen, longestMatch, lookupEntryByVariants, sentence, settingsProvider, subtitleLanguage]
+        [
+            applySenseResolution,
+            isOpen,
+            longestMatch,
+            lookupEntryByVariants,
+            sentence,
+            settingsProvider,
+            subtitleLanguage,
+        ]
     );
 
     /**
@@ -771,7 +782,10 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
             const settings = (await settingsProvider.getAll()) as Record<string, any>;
             const sourceLanguage = subtitleLanguage || settings.metheusTargetLanguage || 'en';
             const targetLanguage =
-                settings.ln_cached_native_language || settings.language || settings.ln_cached_interface_language || 'en';
+                settings.ln_cached_native_language ||
+                settings.language ||
+                settings.ln_cached_interface_language ||
+                'en';
             const lexical = analyzeLexicalUnit({
                 text: lookupText,
                 language: sourceLanguage,

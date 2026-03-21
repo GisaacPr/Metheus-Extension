@@ -96,10 +96,7 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                     const exampleTranslation = example.translation || translatedExamples[exampleText];
 
                     return (
-                        <div
-                            key={`${defIndex}-${idx}`}
-                            className="group rounded-lg transition-colors"
-                        >
+                        <div key={`${defIndex}-${idx}`} className="group rounded-lg transition-colors">
                             {/* Example Sentence + TTS */}
                             <div className="flex items-start gap-2">
                                 <p
@@ -138,7 +135,9 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                                             </span>
                                         ) : (
                                             <Volume2
-                                                className={isCompact ? 'w-4 h-4' : isTextSurface ? 'w-4 h-4' : 'w-5 h-5'}
+                                                className={
+                                                    isCompact ? 'w-4 h-4' : isTextSurface ? 'w-4 h-4' : 'w-5 h-5'
+                                                }
                                             />
                                         )}
                                     </button>

@@ -1,9 +1,5 @@
 import { tokenizeText } from '../ui/dictionary-adapter';
-import type {
-    ConfidenceReason,
-    HoverResolutionResult,
-    HoverSenseCandidate,
-} from './language-intelligence';
+import type { ConfidenceReason, HoverResolutionResult, HoverSenseCandidate } from './language-intelligence';
 
 const STOPWORDS = new Set([
     'the',
@@ -150,7 +146,10 @@ export function resolveSenseRanking(params: {
     const reasons = new Set<ConfidenceReason>(bestCandidate.confidenceReasons || []);
 
     let confidence: 'high' | 'medium' | 'low' = 'low';
-    if (reasons.has('local-translation') && (reasons.has('translated-context-match') || reasons.has('definition-context-overlap'))) {
+    if (
+        reasons.has('local-translation') &&
+        (reasons.has('translated-context-match') || reasons.has('definition-context-overlap'))
+    ) {
         confidence = 'high';
     } else if (reasons.size > 0) {
         confidence = 'medium';

@@ -243,7 +243,8 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                     ---
                     <br />
                     <br />
-                    This project includes inherited open-source portions that remain credited under the original MIT notice:
+                    This project includes inherited open-source portions that remain credited under the original MIT
+                    notice:
                     <br />
                     <br />
                     MIT License

@@ -297,7 +297,12 @@ export class MetheusController {
             this._pausedForDictionaryPopup = true;
         }
 
-        await this._popup.show(word, sentence, { ...position, subtitleLanguage, surfaceKind: 'video' } as any, longestMatch);
+        await this._popup.show(
+            word,
+            sentence,
+            { ...position, subtitleLanguage, surfaceKind: 'video' } as any,
+            longestMatch
+        );
     }
 
     /**
