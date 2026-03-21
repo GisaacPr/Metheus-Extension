@@ -23,7 +23,7 @@
 **Metheus Extension** is the browser runtime for the [Metheus](https://metheus.app) immersion platform.
 It turns streaming video, local media, and everyday webpages into a language-learning workflow with interactive subtitles, hover lookups, vocabulary-aware highlighting, one-click mining, and sync with your Metheus library.
 
-Metheus is not positioned as a generic subtitle utility. It is a broader immersion system built around:
+Metheus is built around:
 
 - video + web study workflows
 - Metheus account sync and vocabulary state
@@ -31,17 +31,17 @@ Metheus is not positioned as a generic subtitle utility. It is a broader immersi
 - mining UX designed for fast capture without breaking immersion
 - dictionary and word-status flows that connect directly to the Metheus platform
 
-## What Is Distinct In Metheus?
+## Metheus Core Capabilities
 
-Metheus includes substantial product and implementation work beyond a subtitle/player foundation, including:
+Metheus includes substantial product and implementation work, including:
 
-- **🌐 Web-wide study workflow**: hover dictionary, DOM text colorization, and reading flows outside video pages
-- **🔄 Metheus sync layer**: bidirectional sync with the Metheus platform instead of a standalone-only workflow
-- **🧠 L+1 engine**: vocabulary-aware highlighting focused on comprehensible input
-- **💊 Smart Pill / immersion UX**: lightweight mining controls designed around uninterrupted consumption
-- **📚 Metheus dictionary flows**: offline dictionary support, online enrichment, and Metheus-specific word-state integration
-- **🪄 Metheus bridge**: direct bridge between the extension runtime and the Metheus web app
-- **🎨 Metheus UI direction**: product, interaction, and presentation tailored to the Metheus learning experience
+- **Web-wide study workflow**: hover dictionary, DOM text colorization, and reading flows outside video pages
+- **Metheus sync layer**: bidirectional sync with the Metheus platform
+- **L+1 engine**: vocabulary-aware highlighting focused on comprehensible input
+- **Smart Pill / immersion UX**: lightweight mining controls designed around uninterrupted consumption
+- **Dictionary flows**: offline dictionary support, online enrichment, and Metheus-specific word-state integration
+- **Metheus bridge**: direct bridge between the extension runtime and the Metheus web app
+- **UI direction**: product, interaction, and presentation tailored to the Metheus learning experience
 
 ## ✨ Features
 
@@ -127,10 +127,8 @@ For a deep dive, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Provenance
 
-Metheus grew on top of an open-source subtitle/player foundation, and we keep that attribution intact where it matters.
-
-- The project contains inherited portions that remain credited under the original MIT notice.
-- The current Metheus product direction, integration layer, UX, sync model, dictionary workflow, and broader immersion system are documented and maintained as Metheus work.
+Metheus grew on top of an open-source subtitle/player foundation and keeps attribution where it is required.
+The current product scope, integration layer, UX, sync model, and dictionary workflows are actively developed as Metheus work.
 
 For a clear explanation of origin, inherited areas, and Metheus-specific work, see [PROVENANCE.md](PROVENANCE.md).
 

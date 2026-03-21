@@ -240,11 +240,10 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                     Copyright (c) 2026 Metheus
                     <br />
                     <br />
-                    ---
+                    Provenance and attribution details are documented in PROVENANCE.md.
                     <br />
                     <br />
-                    This project includes inherited open-source portions that remain credited under the original MIT
-                    notice:
+                    This project includes inherited open-source portions credited under the original MIT notice:
                     <br />
                     <br />
                     MIT License
