@@ -1,66 +1,48 @@
 # Provenance
 
-This document exists to explain the technical origin of Metheus Extension clearly and without reducing the project to a one-line label.
+This document explains the technical origin of Metheus Extension and summarizes what is inherited versus what is implemented and evolved by Metheus.
 
-## Short Version
+## Origin
 
-Metheus Extension started on top of an open-source subtitle/player foundation.
+Metheus Extension started from an open-source subtitle/player foundation.  
+That foundation is an important part of the project history and remains properly credited.
 
-That origin matters and remains credited.
+## Inherited Foundation
 
-At the same time, the current Metheus product should not be understood only as "the old project with branding." The runtime, product scope, integration model, and user experience have diverged materially.
+The inherited base includes portions of browser-extension runtime and subtitle/player primitives, such as:
 
-## What Was Inherited
+- video and subtitle synchronization groundwork
+- subtitle parsing/extraction baseline pieces
+- core extension scaffolding that accelerated initial development
 
-Metheus did not begin from an empty repository.
-
-Inherited areas include parts of the subtitle/player foundation and browser-extension infrastructure that made it possible to bootstrap video synchronization, subtitle extraction, and extension runtime behavior faster than rebuilding every primitive from scratch.
-
-That work remains acknowledged in:
+Legal attribution for inherited portions is maintained in:
 
 - [LICENSE.md](LICENSE.md)
-- places where legal attribution is required
+- required third-party notice areas
 
-## What Metheus Added Or Reworked
+## Metheus Implementation And Product Direction
 
-Metheus is not just a subtitle tool. It is an immersion system with product goals that go beyond the original foundation.
+Metheus expanded and reworked the project into a broader immersion system. Key areas include:
 
-Examples of Metheus-specific direction and implementation include:
+- Metheus account sync and platform integration
+- browser-to-web bridge workflows for Metheus web app interoperability
+- web-wide study flow (dictionary hover, reading-oriented workflows, page colorization)
+- vocabulary-state-aware subtitle colorization tied to Metheus learning state
+- L+1 / comprehensible-input oriented highlighting logic
+- Metheus mining UX patterns for fast in-page capture
+- dictionary stack evolution (offline-first data, online enrichment, contextual ranking)
+- Metheus-specific UI, settings model, and product behavior across contexts
 
-- Metheus sync and platform integration
-- browser-to-web-app bridge behavior for the Metheus platform
-- web-wide hover dictionary and reading workflow
-- vocabulary-aware subtitle colorization tied to Metheus word state
-- L+1 / comprehensible-input highlighting flows
-- Metheus-specific mining UX, including lightweight in-page controls
-- Metheus dictionary flows, offline-first behavior, and online enrichment choices
-- Metheus-specific UI, settings, and product experience decisions
-
-Some files or paths may still resemble the upstream project because they live in the same problem space or evolved from a common starting point. Shared structure does not automatically mean identical implementation.
-
-## How To Read The Project
+## Practical Reading Of This Repository
 
 The most accurate description is:
 
 > Metheus Extension is an independently developed immersion product built on top of an earlier open-source subtitle/player foundation.
 
-That is more accurate than either of these extremes:
+The repository contains both inherited and newly built/evolved areas, and it should be read as a living product codebase with clear provenance.
 
-- "Metheus is entirely from scratch."
-- "Metheus is only the earlier project with branding."
+## Attribution Policy
 
-Both erase important parts of the real history.
-
-## Why This Document Exists
-
-Open-source provenance should be handled with clarity, not with vagueness or overstatement.
-
-This document is here to make three things explicit:
-
-1. The project acknowledges the foundation it started from.
-2. The current Metheus product includes substantial work, direction, and implementation beyond that foundation.
-3. Attribution belongs where it is legally and ethically required, but it should not replace an accurate description of what Metheus is today.
-
-## Legal Note
+Metheus keeps attribution where it is legally and ethically required while documenting ongoing product and engineering work transparently.
 
 For license terms and third-party notices, see [LICENSE.md](LICENSE.md).
