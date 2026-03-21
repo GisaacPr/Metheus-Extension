@@ -14,7 +14,11 @@ interface DictionaryHeaderProps {
     onSpeak: () => void;
     isSpeaking: boolean;
     translation?: string | null;
+    anchoredTranslation?: string | null;
+    translationCandidates?: string[];
     themeType?: 'dark' | 'light';
+    density?: 'comfortable' | 'compact';
+    surfaceKind?: 'video' | 'text';
 }
 
 export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
@@ -25,9 +29,148 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
     onSpeak,
     isSpeaking,
     translation,
+    anchoredTranslation,
+    translationCandidates = [],
     themeType = 'dark',
+    density = 'comfortable',
+    surfaceKind = 'video',
 }) => {
     const isDark = themeType === 'dark';
+    const isCompact = density === 'compact';
+    const isTextSurface = surfaceKind === 'text';
+    const sanitizeDisplayText = (value: string) => value.replace(/\[\[\[|\]\]\]/g, '').trim();
+    const stripDiacritics = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const buildNormalizedIndexMap = (value: string) => {
+        let normalized = '';
+        const indexMap: number[] = [];
+
+        Array.from(value).forEach((char, index) => {
+            const normalizedChar = stripDiacritics(char).toLowerCase();
+            normalized += normalizedChar;
+            for (let i = 0; i < normalizedChar.length; i += 1) {
+                indexMap.push(index);
+            }
+        });
+
+        return { normalized, indexMap };
+    };
+    const renderHighlightedContext = (
+        fullText: string,
+        candidates: string[] = []
+    ) => {
+        const rawText = String(fullText || '').trim();
+        const markerMatch = rawText.match(/\[\[\[\s*(.*?)\s*\]\]\]/);
+        if (markerMatch && markerMatch.index !== undefined) {
+            const before = sanitizeDisplayText(rawText.slice(0, markerMatch.index));
+            const highlighted = sanitizeDisplayText(markerMatch[1] || '');
+            const after = sanitizeDisplayText(rawText.slice(markerMatch.index + markerMatch[0].length));
+
+            return (
+                <>
+                    {before}
+                    <span className={isDark ? 'font-bold text-[#00F0FF]' : 'font-bold text-[#007A8A]'}>
+                        {highlighted}
+                    </span>
+                    {after}
+                </>
+            );
+        }
+
+        const text = sanitizeDisplayText(fullText.trim());
+        const stopwords = new Set([
+            'de',
+            'del',
+            'la',
+            'las',
+            'el',
+            'los',
+            'un',
+            'una',
+            'y',
+            'o',
+            'que',
+            'con',
+            'por',
+            'para',
+            'the',
+            'and',
+            'for',
+            'with',
+            'from',
+            'that',
+            'this',
+            'those',
+            'these',
+        ]);
+        const candidatePool: string[] = [];
+        const seenCandidates = new Set<string>();
+        for (const rawValue of candidates) {
+            const parts = String(rawValue || '')
+                .split(/[;,/]/)
+                .map((part) => sanitizeDisplayText(part.trim()))
+                .filter(Boolean);
+
+            for (const cleaned of parts) {
+                const normalizedCleaned = stripDiacritics(cleaned).toLowerCase();
+                if (!seenCandidates.has(normalizedCleaned)) {
+                    seenCandidates.add(normalizedCleaned);
+                    candidatePool.push(cleaned);
+                }
+
+                const tokens = cleaned
+                    .split(/\s+/)
+                    .map((token) => token.replace(/^[^A-Za-zÀ-ÿ0-9]+|[^A-Za-zÀ-ÿ0-9]+$/g, '').trim())
+                    .filter((token) => token.length >= 4 && !stopwords.has(token.toLowerCase()))
+                    .sort((a, b) => b.length - a.length);
+
+                for (const token of tokens) {
+                    const normalizedToken = stripDiacritics(token).toLowerCase();
+                    if (seenCandidates.has(normalizedToken)) {
+                        continue;
+                    }
+                    seenCandidates.add(normalizedToken);
+                    candidatePool.push(token);
+                }
+            }
+        }
+
+        if (!text || candidatePool.length === 0) {
+            return <>{sanitizeDisplayText(text)}</>;
+        }
+
+        const { normalized: normalizedText, indexMap } = buildNormalizedIndexMap(text);
+        let matchStart = -1;
+        let matchEnd = -1;
+
+        for (const candidate of candidatePool) {
+            const normalizedCandidate = stripDiacritics(candidate).toLowerCase();
+            if (!normalizedCandidate) continue;
+            const normalizedIndex = normalizedText.indexOf(normalizedCandidate);
+            if (normalizedIndex === -1) continue;
+
+            matchStart = indexMap[normalizedIndex] ?? -1;
+            const normalizedEndIndex = normalizedIndex + normalizedCandidate.length - 1;
+            const originalEndIndex = indexMap[normalizedEndIndex] ?? -1;
+            if (matchStart !== -1 && originalEndIndex !== -1) {
+                matchEnd = originalEndIndex + 1;
+                break;
+            }
+        }
+
+        if (matchStart === -1 || matchEnd === -1) {
+            return <>{sanitizeDisplayText(text)}</>;
+        }
+
+        return (
+            <>
+                {text.slice(0, matchStart)}
+                <span className={isDark ? 'font-bold text-[#00F0FF]' : 'font-bold text-[#007A8A]'}>
+                    {sanitizeDisplayText(text.slice(matchStart, matchEnd))}
+                </span>
+                {text.slice(matchEnd)}
+            </>
+        );
+    };
     const headwordColorClass =
         status >= 4
             ? isDark
@@ -44,19 +187,20 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
     return (
         <div
             className={cn(
-                'p-4 sm:p-5 border-b bg-gradient-to-br',
+                'border-b bg-gradient-to-br',
+                isCompact ? 'p-3.5' : 'p-4 sm:p-5',
                 isDark
                     ? 'border-zinc-800/50 from-zinc-950 to-zinc-900 text-zinc-100'
                     : 'border-zinc-200 from-white to-zinc-50 text-zinc-900'
             )}
         >
-            <div className="flex items-start justify-between gap-3 sm:gap-4">
+            <div className={cn('flex items-start justify-between', isCompact ? 'gap-3' : 'gap-3 sm:gap-4')}>
                 <div className="space-y-1.5 flex-1 min-w-0">
                     {/* Word & Audio */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <div className={cn('flex flex-wrap items-center', isCompact ? 'gap-2' : 'gap-2 sm:gap-3')}>
                         <h2
                             className={cn(
-                                'text-[32px] sm:text-[40px] font-black tracking-tight truncate',
+                                isCompact ? 'text-[24px] font-black tracking-tight truncate' : 'text-[32px] sm:text-[40px] font-black tracking-tight truncate',
                                 headwordColorClass
                             )}
                         >
@@ -66,7 +210,14 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         <button
                             onClick={onSpeak}
                             className={cn(
-                                'flex-shrink-0 flex items-center justify-center p-2.5 sm:p-2 rounded-full transition-all duration-300 touch-manipulation min-w-[48px] min-h-[48px]',
+                                'flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-300 touch-manipulation',
+                                isTextSurface
+                                    ? isCompact
+                                        ? 'p-2 min-w-[38px] min-h-[38px]'
+                                        : 'p-2 min-w-[38px] min-h-[38px]'
+                                    : isCompact
+                                      ? 'p-3.5 min-w-[56px] min-h-[56px]'
+                                      : 'p-3.5 min-w-[56px] min-h-[56px]',
                                 isSpeaking
                                     ? 'bg-[#00F0FF] text-zinc-950 shadow-md scale-110'
                                     : isDark
@@ -76,24 +227,30 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         >
                             {isSpeaking ? (
                                 <span className="animate-pulse">
-                                    <Volume2 className="w-10 h-10 fill-current" />
+                                    <Volume2
+                                        className={cn(
+                                            'fill-current',
+                                            isTextSurface ? 'w-5 h-5' : 'w-8 h-8'
+                                        )}
+                                    />
                                 </span>
                             ) : (
-                                <Volume2 className="w-10 h-10" />
+                                <Volume2 className={isTextSurface ? 'w-5 h-5' : 'w-8 h-8'} />
                             )}
                         </button>
                     </div>
 
                     {/* Translation - single line with ellipsis */}
-                    {translation && (
+                    {(anchoredTranslation || translation) && (
                         <div
                             className={cn(
-                                'text-[15px] sm:text-[16px] font-semibold leading-snug mt-1 whitespace-nowrap overflow-hidden text-ellipsis',
-                                isDark ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
+                                'font-semibold leading-snug mt-1 whitespace-normal break-words',
+                                isCompact ? 'text-[13px]' : 'text-[15px] sm:text-[16px]',
+                                isDark ? 'text-white' : 'text-zinc-900'
                             )}
-                            title={translation}
+                            title={sanitizeDisplayText(anchoredTranslation || translation || '')}
                         >
-                            {translation}
+                            {renderHighlightedContext(anchoredTranslation || translation || '', translationCandidates)}
                         </div>
                     )}
 
@@ -102,7 +259,10 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                         {phonetic && (
                             <span
                                 className={cn(
-                                    'font-mono font-semibold text-[18px] sm:text-[21px] px-4 sm:px-[1.125rem] py-2 sm:py-2.5 rounded-xl ml-0.5 shrink-0 max-w-[56%] truncate leading-none',
+                                    'font-mono font-semibold ml-0.5 shrink-0 whitespace-nowrap leading-none',
+                                    isCompact
+                                        ? 'text-[10px] px-2 py-1 rounded-lg'
+                                        : 'text-[11px] px-3 py-1.5 rounded-xl',
                                     isDark ? 'text-zinc-400 bg-zinc-800/50' : 'text-zinc-700 bg-zinc-100'
                                 )}
                             >
@@ -110,7 +270,7 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                             </span>
                         )}
 
-                        <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-2 min-w-0 overflow-hidden whitespace-nowrap">
                             {badges.map((badge, i) => {
                                 const badgeClass =
                                     badge.type === 'pos'
@@ -133,7 +293,10 @@ export const DictionaryHeader: React.FC<DictionaryHeaderProps> = ({
                                     <span
                                         key={`${badge.type}-${i}`}
                                         className={cn(
-                                            'px-3.5 sm:px-4 py-1.5 rounded-xl text-[13px] sm:text-[14px] font-bold uppercase tracking-[0.08em] border shrink-0 max-w-[11rem] truncate',
+                                            'font-bold uppercase tracking-[0.08em] border shrink-0 whitespace-nowrap',
+                                            isCompact
+                                                ? 'px-2 py-1 rounded-lg text-[10px]'
+                                                : 'px-3 py-1.5 rounded-xl text-[11px]',
                                             badgeClass
                                         )}
                                         title={badge.label}

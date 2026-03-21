@@ -18,7 +18,9 @@ const STATUS = {
     KNOWN: 5,
 };
 
-const sanitizeText = (value?: string | null) =>
+const stripAnchorMarkers = (value?: string | null) => (value || '').replace(/\[\[\[|\]\]\]/g, '');
+
+const sanitizeAnchorAwareText = (value?: string | null) =>
     (value || '')
         .replace(/<\/?c[^>]*>/gi, '')
         .replace(/\[(?:\/)?c\]/gi, '')
@@ -26,12 +28,51 @@ const sanitizeText = (value?: string | null) =>
         .replace(/\s+/g, ' ')
         .trim();
 
+const sanitizeText = (value?: string | null) => stripAnchorMarkers(sanitizeAnchorAwareText(value));
+
 const sanitizeMultiline = (value?: string | null) =>
     (value || '')
         .split('\n')
         .map((line) => sanitizeText(line))
         .filter((line) => line.length > 0)
         .join('\n');
+
+const normalizeLookupWord = (value?: string | null) =>
+    sanitizeText(value || '')
+        .replace(/[.,!?;:()]/g, '')
+        .trim();
+
+const buildAnchoredContextText = (contextText: string, lookupWord: string): string => {
+    const cleanContext = sanitizeText(contextText);
+    const cleanLookup = normalizeLookupWord(lookupWord);
+    if (!cleanContext || !cleanLookup) {
+        return cleanContext;
+    }
+
+    const loweredContext = cleanContext.toLowerCase();
+    const loweredLookup = cleanLookup.toLowerCase();
+    const index = loweredContext.indexOf(loweredLookup);
+
+    if (index === -1) {
+        return cleanContext;
+    }
+
+    const originalSlice = cleanContext.slice(index, index + cleanLookup.length);
+    return `${cleanContext.slice(0, index)}[[[${originalSlice}]]]${cleanContext.slice(index + cleanLookup.length)}`;
+};
+
+const extractQuotedTranslation = (translatedText?: string | null): string | null => {
+    const cleanText = sanitizeAnchorAwareText(translatedText || '');
+    if (!cleanText) {
+        return null;
+    }
+
+    const match = cleanText.match(/\[\[\[\s*([^[\]]{1,80}?)\s*\]\]\]/);
+    return match?.[1] ? sanitizeText(match[1]) : null;
+};
+
+const uniqueNonEmpty = (items: Array<string | null | undefined>): string[] =>
+    Array.from(new Set(items.map((item) => sanitizeText(item)).filter(Boolean)));
 
 const normalizeMeaningKey = (value?: string | null) =>
     sanitizeMultiline(value || '')
@@ -154,6 +195,7 @@ interface DictionaryPopupProps {
             width: number;
             height: number;
         };
+        surfaceKind?: 'video' | 'text';
     };
     isOpen: boolean;
     onClose: () => void;
@@ -182,6 +224,8 @@ interface DictionaryPopupProps {
     ) => Promise<{ requestId?: string; cardId?: string } | void>;
     onOpenSavedCard?: (cardId: string) => Promise<void> | void;
     onGetWordStatus: (word: string) => Promise<number>;
+    onDefineWithAi?: (word: string) => Promise<UnifiedEntry | null>;
+    canDefineWithAi?: boolean;
 
     variant?: 'popup' | 'sidebar';
 }
@@ -200,6 +244,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     onCreateCard,
     onOpenSavedCard,
     onGetWordStatus,
+    onDefineWithAi,
+    canDefineWithAi = false,
     variant = 'popup',
 }) => {
     const [entry, setEntry] = useState<UnifiedEntry | null>(null);
@@ -214,42 +260,76 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
     const [hoveredDefinitionIndex, setHoveredDefinitionIndex] = useState<number | undefined>(undefined);
     const [showLearningLevels, setShowLearningLevels] = useState(false);
     const [contextTranslation, setContextTranslation] = useState<string | null>(null);
+    const [anchoredContextTranslation, setAnchoredContextTranslation] = useState<string | null>(null);
+    const [isDefiningWithAi, setIsDefiningWithAi] = useState(false);
+    const [aiDefineError, setAiDefineError] = useState<string | null>(null);
 
     const popupRef = useRef<HTMLDivElement>(null);
     const { t, locale } = useTranslation();
     const { translateText } = useGoogleTranslation();
     const { speak, state } = useTTS({ language: entry?.language || 'en' });
     const isSpeakingWord = state.isPlaying;
+    const contextAnchorWord = useMemo(() => normalizeLookupWord(word) || normalizeLookupWord(requestedWord || word), [word, requestedWord]);
 
     useEffect(() => {
         setContextTranslation(null);
+        setAnchoredContextTranslation(null);
         setSavedCardId(null);
         setSelectedDefinitionIndex(undefined);
         setHoveredDefinitionIndex(undefined);
+        setIsDefiningWithAi(false);
+        setAiDefineError(null);
     }, [word, context]);
 
     useEffect(() => {
-        if (!context?.trim() || !locale) {
+        const cleanContext = sanitizeText(context);
+        if (!cleanContext || !locale) {
             return;
         }
 
         const sourceLanguage = contextLanguage || entry?.language || 'en';
         if (locale === sourceLanguage) {
-            setContextTranslation(context);
+            setContextTranslation(cleanContext);
+            setAnchoredContextTranslation(buildAnchoredContextText(cleanContext, contextAnchorWord));
             return;
         }
 
         let cancelled = false;
-        translateText(context, locale, sourceLanguage).then((translated) => {
-            if (!cancelled && translated) {
-                setContextTranslation(translated);
+        const anchoredContext = buildAnchoredContextText(cleanContext, contextAnchorWord);
+
+        Promise.all([
+            translateText(cleanContext, locale, sourceLanguage, {
+                cacheKind: 'phrase',
+                sourceFingerprint: 'popup-context-v2',
+                sourceScope: 'private-local',
+            }),
+            anchoredContext && anchoredContext !== cleanContext
+                ? translateText(anchoredContext, locale, sourceLanguage, {
+                      cacheKind: 'phrase',
+                      sourceFingerprint: 'popup-context-anchored-v3',
+                      sourceScope: 'private-local',
+                  })
+                : Promise.resolve(null),
+        ]).then(([translated, anchoredTranslated]) => {
+            if (cancelled) {
+                return;
+            }
+
+            if (translated) {
+                setContextTranslation(sanitizeText(translated));
+            }
+
+            if (anchoredTranslated) {
+                setAnchoredContextTranslation(sanitizeAnchorAwareText(anchoredTranslated));
+            } else if (translated) {
+                setAnchoredContextTranslation(sanitizeText(translated));
             }
         });
 
         return () => {
             cancelled = true;
         };
-    }, [context, contextLanguage, entry?.language, locale, translateText]);
+    }, [context, contextAnchorWord, contextLanguage, entry?.language, locale, translateText, word]);
 
     // Prefer platform-provided audio when available, else fallback to browser TTS
     const playAudioUrl = (url: string) => {
@@ -261,6 +341,28 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
             });
         } catch {
             speak(entry?.word ?? word);
+        }
+    };
+
+    const handleDefineWithAi = async () => {
+        if (!onDefineWithAi) {
+            return;
+        }
+
+        setAiDefineError(null);
+        setIsDefiningWithAi(true);
+        try {
+            const aiEntry = await onDefineWithAi(requestedWord || word);
+            const sanitized = sanitizeEntryDefinitions(aiEntry);
+            if (sanitized) {
+                setEntry(sanitized);
+            } else {
+                setAiDefineError(t('dictionary.popup.ai_error'));
+            }
+        } catch {
+            setAiDefineError(t('dictionary.popup.ai_error'));
+        } finally {
+            setIsDefiningWithAi(false);
         }
     };
 
@@ -456,11 +558,18 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
 
             if (locale && locale !== sourceLanguage) {
                 if (!inferredWordTranslation) {
-                    inferredWordTranslation = (await translateText(entry.word, locale, sourceLanguage)) || undefined;
+                    inferredWordTranslation =
+                        (await translateText(entry.word, locale, sourceLanguage, {
+                            cacheKind: 'phrase',
+                            sourceScope: 'private-local',
+                        })) || undefined;
                 }
 
                 if (!inferredDefinitionTranslation && def?.trim()) {
-                    inferredDefinitionTranslation = (await translateText(def, locale, sourceLanguage)) || undefined;
+                    inferredDefinitionTranslation =
+                        (await translateText(def, locale, sourceLanguage, {
+                            cacheKind: 'definition',
+                        })) || undefined;
                 }
             }
             const detailLines = [
@@ -556,18 +665,24 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
 
     // INTELLIGENT COMPACT MODE DETECTION
     // Use compact mode when there isn't enough vertical space for full popup
-    const FULL_HEIGHT = 620;
-    const COMPACT_HEIGHT = 380;
-    const useCompactMode = spaceAbove < FULL_HEIGHT && spaceBelow < FULL_HEIGHT;
+    const isTextSurface = position.surfaceKind === 'text';
+    const availableVerticalSpace = Math.max(spaceAbove, spaceBelow);
+    const sideSpaceLeft = anchorRect ? anchorRect.left : viewportLeft;
+    const sideSpaceRight = anchorRect ? window.innerWidth - anchorRect.right : window.innerWidth - viewportLeft;
+    const availableSideSpace = Math.max(sideSpaceLeft, sideSpaceRight);
+    const comfortableHeight = isTextSurface ? 470 : 620;
+    const compactHeight = isTextSurface ? 360 : 380;
+    const useCompactMode = !(availableVerticalSpace >= comfortableHeight || availableSideSpace >= 500);
+    const density: 'comfortable' | 'compact' = useCompactMode ? 'compact' : 'comfortable';
 
     // Dynamic dimensions based on mode
     const maxHeight = useCompactMode
-        ? Math.min(COMPACT_HEIGHT, window.innerHeight - margin * 2)
-        : Math.min(FULL_HEIGHT, window.innerHeight - margin * 2);
+        ? Math.min(compactHeight, window.innerHeight - margin * 2)
+        : Math.min(comfortableHeight, window.innerHeight - margin * 2);
     const maxWidth = useCompactMode
-        ? Math.min(560, window.innerWidth - margin * 2) // Wider in compact mode
-        : Math.min(480, window.innerWidth - margin * 2);
-    const popupWidth = Math.max(340, maxWidth);
+        ? Math.min(isTextSurface ? 520 : 560, window.innerWidth - margin * 2)
+        : Math.min(isTextSurface ? 500 : 480, window.innerWidth - margin * 2);
+    const popupWidth = Math.max(isTextSurface ? 340 : 340, maxWidth);
 
     // Horizontal center logic
     let left = Math.max(margin, Math.min(viewportLeft - popupWidth / 2, window.innerWidth - popupWidth - margin));
@@ -769,6 +884,15 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
         pointerEvents: 'auto',
     };
 
+    const translationCandidates = useMemo(() => {
+        const anchoredCandidate = extractQuotedTranslation(anchoredContextTranslation);
+        if (anchoredCandidate) {
+            return [anchoredCandidate];
+        }
+
+        return uniqueNonEmpty(entry?.translations || []);
+    }, [anchoredContextTranslation, entry?.translations]);
+
     const detailsData = useMemo(() => {
         if (!entry) {
             return [];
@@ -781,7 +905,12 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                 value: sanitizeMultiline(String(item.value)),
                 key: sanitizeText(item.key || item.label).toLowerCase(),
             }))
-            .filter((item) => item.label.length > 0 && item.value.length > 0);
+            .filter(
+                (item) =>
+                    item.label.length > 0 &&
+                    item.value.length > 0 &&
+                    !['ai_source', 'ai_confidence'].includes(item.key)
+            );
 
         const seenRowKeys = new Set<string>();
         const coreRows = normalizedCore.filter((item) => {
@@ -793,61 +922,6 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
             return true;
         });
 
-        const synonyms = Array.from(
-            new Set(
-                entry.definitions
-                    .flatMap((definition) => definition.synonyms || [])
-                    .map((value) => sanitizeText(value))
-                    .filter(Boolean)
-            )
-        );
-        const antonyms = Array.from(
-            new Set(
-                entry.definitions
-                    .flatMap((definition) => definition.antonyms || [])
-                    .map((value) => sanitizeText(value))
-                    .filter(Boolean)
-            )
-        );
-
-        const fallbackRows = [
-            ...(entry.translations && entry.translations.length > 1
-                ? [
-                      {
-                          label: 'Alt Translations',
-                          value: entry.translations.slice(0, 8).join(', '),
-                          key: 'fallback-alt-translations',
-                      },
-                  ]
-                : []),
-            ...(synonyms.length > 0
-                ? [
-                      {
-                          label: 'Synonyms',
-                          value: synonyms.slice(0, 20).join(', '),
-                          key: 'fallback-synonyms',
-                      },
-                  ]
-                : []),
-            ...(antonyms.length > 0
-                ? [
-                      {
-                          label: 'Antonyms',
-                          value: antonyms.slice(0, 12).join(', '),
-                          key: 'fallback-antonyms',
-                      },
-                  ]
-                : []),
-        ];
-
-        for (const row of fallbackRows) {
-            const rowKey = `${row.key}::${String(row.value).toLowerCase()}`;
-            if (!seenRowKeys.has(rowKey)) {
-                seenRowKeys.add(rowKey);
-                coreRows.push(row);
-            }
-        }
-
         return coreRows;
     }, [entry]);
 
@@ -856,7 +930,9 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
             return [];
         }
 
-        const output = [...(entry.badges || [])];
+        const output = [...(entry.badges || [])].filter(
+            (badge) => !['AI', 'LOW', 'MEDIUM', 'HIGH'].includes(sanitizeText(badge.label).toUpperCase())
+        );
         const hasLevel = output.some((badge) => badge.type === 'level');
         const hasFrequency = output.some((badge) => badge.type === 'frequency');
         const hasPos = output.some((badge) => badge.type === 'pos');
@@ -1001,7 +1077,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                 //
                 // Force Tailwind dark-mode activation to follow the actual MUI theme mode.
                 className={cn(
-                    'shadow-2xl border flex flex-col overflow-hidden rounded-2xl font-sans text-left text-[20px]',
+                    'shadow-2xl border flex flex-col overflow-hidden rounded-2xl font-sans text-left',
+                    density === 'compact' ? 'text-[16px]' : 'text-[18px]',
                     // LIGHT: solid surfaces (no alpha) for consistency on top of video pages.
                     // DARK: keep glassmorphism (alpha + blur) handled by inner containers.
                     themeType === 'dark'
@@ -1016,15 +1093,25 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                 {/* Close Button */}
                 <button
                     onClick={handleClose}
-                    className="absolute top-3 right-3 z-10 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-zinc-500 dark:text-zinc-400 hover:text-red-500"
+                    className={cn(
+                        'absolute z-10 rounded-full transition-colors text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-800',
+                        density === 'compact' ? 'top-2.5 right-2.5 p-1.5' : 'top-3 right-3 p-2'
+                    )}
                 >
-                    <X className="w-8 h-8" />
+                    <X className={density === 'compact' ? 'w-5 h-5' : 'w-7 h-7'} />
                 </button>
 
                 {loading && (
-                    <div className="p-12 flex flex-col items-center justify-center h-full gap-4 min-h-[300px]">
-                        <Loader2 className="w-[2.5em] h-[2.5em] animate-spin text-[#00F0FF]" />
-                        <p className="text-[1em] text-zinc-500">{t('dictionary.popup.searching')}</p>
+                    <div
+                        className={cn(
+                            'flex flex-col items-center justify-center h-full gap-4',
+                            density === 'compact' ? 'p-8 min-h-[220px]' : 'p-12 min-h-[300px]'
+                        )}
+                    >
+                        <Loader2 className={cn('animate-spin text-[#00F0FF]', density === 'compact' ? 'w-8 h-8' : 'w-10 h-10')} />
+                        <p className={cn('text-zinc-500', density === 'compact' ? 'text-[0.95em]' : 'text-[1em]')}>
+                            {t('dictionary.popup.searching')}
+                        </p>
                     </div>
                 )}
 
@@ -1069,14 +1156,19 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                 }
                                 isSpeaking={isSpeakingWord}
                                 translation={contextTranslation ?? null}
+                                anchoredTranslation={anchoredContextTranslation ?? null}
+                                translationCandidates={translationCandidates}
                                 status={status}
                                 themeType={themeType}
+                                density={density}
+                                surfaceKind={position.surfaceKind}
                             />
 
                             {/* Tabs */}
                             <div
                                 className={cn(
-                                    'flex items-center px-8 border-b flex-shrink-0',
+                                    'flex items-center border-b flex-shrink-0',
+                                    density === 'compact' ? 'px-4' : 'px-8',
                                     themeType === 'dark' ? 'border-zinc-800' : 'border-zinc-200'
                                 )}
                             >
@@ -1085,7 +1177,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         key={tab}
                                         onClick={() => setActiveTab(tab as any)}
                                         className={cn(
-                                            'flex-1 py-3 text-[16px] uppercase tracking-wider relative transition-colors',
+                                            'flex-1 uppercase tracking-wider relative transition-colors',
+                                            density === 'compact' ? 'py-2.5 text-[13px]' : 'py-3 text-[16px]',
                                             activeTab === tab
                                                 ? cn(
                                                       'font-bold',
@@ -1114,8 +1207,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
 
                             {/* Online enrichment indicator */}
                             {isEnriching && (
-                                <div className="flex-shrink-0 px-8 py-1">
-                                    <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                                <div className={cn('flex-shrink-0 py-1', density === 'compact' ? 'px-4' : 'px-8')}>
+                                    <div className={cn('flex items-center gap-2 text-zinc-400', density === 'compact' ? 'text-[10px]' : 'text-[11px]')}>
                                         <Loader2 className="w-3 h-3 animate-spin" />
                                         <span>{t('dictionary.popup.enriching') || 'Fetching more...'}</span>
                                     </div>
@@ -1125,7 +1218,8 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                             {/* Body - Tab Content (scrollable; header+tabs remain fixed) */}
                             <div
                                 className={cn(
-                                    'flex-1 min-h-0 overflow-y-auto p-6 space-y-6 text-[20px]',
+                                    'flex-1 min-h-0 overflow-y-auto',
+                                    density === 'compact' ? 'p-4 space-y-4 text-[16px]' : 'p-6 space-y-6 text-[18px]',
                                     // Light-mode readability: enforce stronger defaults for text colors inside content.
                                     // This avoids hunting dozens of `text-zinc-400/500` occurrences.
                                     themeType === 'dark'
@@ -1140,6 +1234,7 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         onSelectDefinition={setSelectedDefinitionIndex}
                                         onHoverDefinition={setHoveredDefinitionIndex}
                                         themeType={themeType}
+                                        density={density}
                                     />
                                 )}
                                 {activeTab === 'examples' && (
@@ -1149,10 +1244,12 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
                                         sourceLanguage={entry.language || 'en'}
                                         translationTargetLanguage={locale}
                                         themeType={themeType}
+                                        density={density}
+                                        surfaceKind={position.surfaceKind}
                                     />
                                 )}
                                 {activeTab === 'details' && (
-                                    <DictionaryMetadata data={detailsData} themeType={themeType} />
+                                    <DictionaryMetadata data={detailsData} themeType={themeType} density={density} />
                                 )}
                             </div>
                         </>
@@ -1160,11 +1257,58 @@ export const DictionaryPopup: React.FC<DictionaryPopupProps> = ({
 
                     {/* Not Found */}
                     {!loading && !entry && (
-                        <div className="p-12 text-center space-y-4 min-h-[300px]">
-                            <div className="w-20 h-20 mx-auto rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center">
-                                <Search className="w-[2.5em] h-[2.5em] text-zinc-300" />
+                        <div
+                            className={cn(
+                                'text-center space-y-4',
+                                density === 'compact' ? 'p-8 min-h-[220px]' : 'p-12 min-h-[300px]'
+                            )}
+                        >
+                            <div
+                                className={cn(
+                                    'mx-auto rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center',
+                                    density === 'compact' ? 'w-14 h-14' : 'w-20 h-20'
+                                )}
+                            >
+                                <Search className={cn('text-zinc-300', density === 'compact' ? 'w-7 h-7' : 'w-10 h-10')} />
                             </div>
-                            <p className="text-[1.125em] font-semibold">{t('dictionary.popup.no_def_title')}</p>
+                            <div className="space-y-2">
+                                <p className={cn('font-semibold', density === 'compact' ? 'text-[1em]' : 'text-[1.125em]')}>
+                                    {t('dictionary.popup.no_def_title')}
+                                </p>
+                                <p className={cn('text-zinc-500', density === 'compact' ? 'text-[0.85em]' : 'text-[0.9em]')}>
+                                    {t('dictionary.popup.no_def_desc', { word: requestedWord || word })}
+                                </p>
+                            </div>
+                            {canDefineWithAi && (
+                                <div className="space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void handleDefineWithAi();
+                                        }}
+                                        disabled={isDefiningWithAi}
+                                        className={cn(
+                                            'inline-flex items-center gap-2 rounded-xl font-semibold transition-colors',
+                                            density === 'compact' ? 'px-3 py-2 text-[0.82em]' : 'px-4 py-2 text-[0.9em]',
+                                            isDefiningWithAi
+                                                ? 'bg-zinc-800/50 text-zinc-400 cursor-not-allowed'
+                                                : 'bg-[#00F0FF] text-zinc-950 hover:bg-[#7af7ff]'
+                                        )}
+                                    >
+                                        {isDefiningWithAi ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="w-4 h-4" />
+                                        )}
+                                        {isDefiningWithAi
+                                            ? t('dictionary.popup.ai_defining')
+                                            : t('dictionary.popup.ai_define')}
+                                    </button>
+                                    {aiDefineError && (
+                                        <p className="text-[0.85em] text-amber-400">{aiDefineError}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

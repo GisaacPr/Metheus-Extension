@@ -495,11 +495,11 @@ const InformationSettingsTab: React.FC<Props> = ({
                                         component="p"
                                         sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}
                                     >
-                                        {`Metheus is licensed under the AGPLv3 License.
+{`Metheus is licensed under the AGPLv3 License.
 Copyright (c) ${metheusCopyrightYears} Metheus
 
 ---
-The core playback engine and extension infrastructure are based on the asbplayer project:
+This project includes inherited open-source portions that remain credited under the original MIT notice:
 
 MIT License
 Copyright (c) 2020-${currentYear} asbplayer authors

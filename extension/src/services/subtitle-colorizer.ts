@@ -98,7 +98,11 @@ export class SubtitleColorizer {
     private options: ColorizerOptions;
     private styleInjected: boolean = false;
     private wordClickHandlers: Map<HTMLElement, (e: MouseEvent) => void> = new Map();
+    private wordHoverEnterHandlers: Map<HTMLElement, (e: PointerEvent) => void> = new Map();
+    private wordHoverLeaveHandlers: Map<HTMLElement, (e: PointerEvent) => void> = new Map();
     public onWordClick?: (word: string, sentence: string, element: HTMLElement) => void;
+    public onWordHover?: (word: string, sentence: string, element: HTMLElement) => void;
+    public onWordHoverEnd?: () => void;
     private frequencyData: FrequencyData | null = null;
     private knownWordsAdapter: KnownWordsProviderAdapter | null = null;
 
@@ -367,6 +371,14 @@ export class SubtitleColorizer {
         this.onWordClick = handler;
     }
 
+    setOnWordHover(handler: (word: string, sentence: string, element: HTMLElement) => void): void {
+        this.onWordHover = handler;
+    }
+
+    setOnWordHoverEnd(handler: () => void): void {
+        this.onWordHoverEnd = handler;
+    }
+
     /**
      * Process text and return HTML with Metheus coloring.
      * This replaces the old DOM mutation approach.
@@ -566,6 +578,21 @@ export class SubtitleColorizer {
 
             htmlElement.addEventListener('click', handler);
             this.wordClickHandlers.set(htmlElement, handler);
+
+            const enterHandler = () => {
+                if (this.onWordHover) {
+                    this.onWordHover(word, originalSentence, htmlElement);
+                }
+            };
+
+            const leaveHandler = () => {
+                this.onWordHoverEnd?.();
+            };
+
+            htmlElement.addEventListener('pointerenter', enterHandler);
+            htmlElement.addEventListener('pointerleave', leaveHandler);
+            this.wordHoverEnterHandlers.set(htmlElement, enterHandler);
+            this.wordHoverLeaveHandlers.set(htmlElement, leaveHandler);
         });
     }
 
@@ -633,6 +660,14 @@ export class SubtitleColorizer {
             element.removeEventListener('click', handler);
         });
         this.wordClickHandlers.clear();
+        this.wordHoverEnterHandlers.forEach((handler, element) => {
+            element.removeEventListener('pointerenter', handler);
+        });
+        this.wordHoverEnterHandlers.clear();
+        this.wordHoverLeaveHandlers.forEach((handler, element) => {
+            element.removeEventListener('pointerleave', handler);
+        });
+        this.wordHoverLeaveHandlers.clear();
     }
 
     /**

@@ -2,6 +2,12 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { SettingsProvider } from '@metheus/common/settings';
 import { ExtensionSettingsStorage } from '../services/extension-settings-storage';
 import { translateWithExtensionProviders } from '../services/browser-translation';
+import {
+    getCachedDefinitionTranslation,
+    getCachedPhraseTranslation,
+    persistDefinitionTranslation,
+    persistPhraseTranslation,
+} from '../services/language-cache';
 
 // Minimal i18n fallback (extension still has full i18n elsewhere).
 export const useTranslation = () => {
@@ -66,6 +72,10 @@ export const useTranslation = () => {
                 'dictionary.popup.searching': 'Searching...',
                 'dictionary.popup.no_def_title': 'Word not found',
                 'dictionary.popup.no_def_desc': "We couldn't find a definition for this word.",
+                'dictionary.popup.ai_define': 'Define with AI',
+                'dictionary.popup.ai_defining': 'Defining with AI...',
+                'dictionary.popup.ai_error': 'AI definition is temporarily unavailable.',
+                'dictionary.popup.ai_result': 'AI fallback result',
                 'dictionary.popup.status.new': 'New',
                 'dictionary.popup.status.learning': 'Learning',
                 'dictionary.popup.status.known': 'Known',
@@ -85,9 +95,65 @@ export const useTranslation = () => {
 };
 
 export const useGoogleTranslation = () => {
+    const settingsProvider = useMemo(() => new SettingsProvider(new ExtensionSettingsStorage()), []);
     return {
-        translateText: async (text: string, targetLang: string, sourceLang?: string) => {
+        translateText: async (
+            text: string,
+            targetLang: string,
+            sourceLang?: string,
+            cacheOptions?: {
+                cacheKind?: 'phrase' | 'definition';
+                sourceFingerprint?: string | null;
+                sourceScope?: 'public-shared' | 'private-local';
+            }
+        ) => {
+            const normalizedText = text.trim();
+            if (!normalizedText) return null;
+
+            if (cacheOptions?.cacheKind === 'definition') {
+                const cached = await getCachedDefinitionTranslation(
+                    settingsProvider,
+                    sourceLang || 'auto',
+                    targetLang,
+                    normalizedText
+                );
+                if (cached?.translatedText) {
+                    return cached.translatedText;
+                }
+            } else if (cacheOptions?.cacheKind === 'phrase') {
+                const cached = await getCachedPhraseTranslation(
+                    sourceLang || 'auto',
+                    targetLang,
+                    normalizedText,
+                    cacheOptions.sourceFingerprint || 'local'
+                );
+                if (cached?.translatedText) {
+                    return cached.translatedText;
+                }
+            }
+
             const result = await translateWithExtensionProviders(text, targetLang, sourceLang);
+            if (result.translated) {
+                if (cacheOptions?.cacheKind === 'definition') {
+                    await persistDefinitionTranslation(
+                        settingsProvider,
+                        sourceLang || 'auto',
+                        targetLang,
+                        normalizedText,
+                        result.translated
+                    );
+                } else if (cacheOptions?.cacheKind === 'phrase') {
+                    await persistPhraseTranslation({
+                        sourceLanguage: sourceLang || 'auto',
+                        targetLanguage: targetLang,
+                        text: normalizedText,
+                        translatedText: result.translated,
+                        sourceFingerprint: cacheOptions.sourceFingerprint,
+                        sourceScope: cacheOptions.sourceScope,
+                    });
+                }
+            }
+
             return result.translated;
         },
     };

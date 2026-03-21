@@ -11,6 +11,8 @@ interface DictionaryExamplesProps {
     sourceLanguage?: string;
     translationTargetLanguage?: string;
     themeType?: 'dark' | 'light';
+    density?: 'comfortable' | 'compact';
+    surfaceKind?: 'video' | 'text';
 }
 
 export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
@@ -20,8 +22,12 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
     sourceLanguage = 'en',
     translationTargetLanguage,
     themeType = 'dark',
+    density = 'comfortable',
+    surfaceKind = 'video',
 }) => {
     const isDark = themeType === 'dark';
+    const isCompact = density === 'compact';
+    const isTextSurface = surfaceKind === 'text';
     const { translateText } = useGoogleTranslation();
     const [translatedExamples, setTranslatedExamples] = useState<Record<string, string>>({});
 
@@ -50,7 +56,10 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
             const pairs = await Promise.all(
                 allExamples.map(async ({ example }) => {
                     const sentence = example.sentence;
-                    const translated = await translateText(sentence, target, sourceLanguage);
+                    const translated = await translateText(sentence, target, sourceLanguage, {
+                        cacheKind: 'phrase',
+                        sourceScope: 'private-local',
+                    });
                     return translated ? ([sentence, translated] as const) : null;
                 })
             );
@@ -78,8 +87,8 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
     if (!definitions || definitions.length === 0 || allExamples.length === 0) return null;
 
     return (
-        <div className="space-y-2">
-            <div className="space-y-2.5">
+        <div className={cn(isCompact ? 'space-y-1.5' : 'space-y-2')}>
+            <div className={cn(isCompact ? 'space-y-2' : 'space-y-2.5')}>
                 {allExamples.map(({ defIndex, example }, idx) => {
                     const exampleText = example.sentence;
                     const isSpeaking = speakingExample === exampleText;
@@ -89,18 +98,14 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                     return (
                         <div
                             key={`${defIndex}-${idx}`}
-                            className={cn(
-                                'group pl-3 border-l-2 transition-colors',
-                                isDark
-                                    ? 'border-[#00F0FF]/35 hover:border-[#00F0FF]'
-                                    : 'border-[#00F0FF]/25 hover:border-[#00C6D9]'
-                            )}
+                            className="group rounded-lg transition-colors"
                         >
                             {/* Example Sentence + TTS */}
                             <div className="flex items-start gap-2">
                                 <p
                                     className={cn(
-                                        'flex-1 text-[18px] italic leading-relaxed',
+                                        'flex-1 italic leading-relaxed',
+                                        isCompact ? 'text-[14px]' : 'text-[17px]',
                                         isDark ? 'text-zinc-300' : 'text-zinc-700'
                                     )}
                                 >
@@ -112,7 +117,8 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                                     <button
                                         onClick={() => onSpeakExample(exampleText)}
                                         className={cn(
-                                            'flex-shrink-0 flex items-center justify-center p-2.5 rounded-full transition-all scale-100 hover:scale-110 active:scale-95',
+                                            'flex-shrink-0 flex items-center justify-center rounded-full transition-all scale-100 hover:scale-110 active:scale-95',
+                                            isCompact ? 'p-1.5' : isTextSurface ? 'p-1.5' : 'p-2',
                                             isSpeaking
                                                 ? 'bg-[#00F0FF] text-zinc-950 shadow-md'
                                                 : isDark
@@ -123,10 +129,17 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                                     >
                                         {isSpeaking ? (
                                             <span className="animate-pulse">
-                                                <Volume2 className="w-7 h-7 fill-current" />
+                                                <Volume2
+                                                    className={cn(
+                                                        'fill-current',
+                                                        isCompact ? 'w-4 h-4' : isTextSurface ? 'w-4 h-4' : 'w-5 h-5'
+                                                    )}
+                                                />
                                             </span>
                                         ) : (
-                                            <Volume2 className="w-7 h-7" />
+                                            <Volume2
+                                                className={isCompact ? 'w-4 h-4' : isTextSurface ? 'w-4 h-4' : 'w-5 h-5'}
+                                            />
                                         )}
                                     </button>
                                 )}
@@ -135,7 +148,8 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
                             {exampleTranslation && (
                                 <p
                                     className={cn(
-                                        'text-[16px] mt-1 pl-1 border-l-2 border-[#00F0FF]/45 font-medium',
+                                        'mt-1 font-medium',
+                                        isCompact ? 'text-[13px]' : 'text-[15px]',
                                         isDark ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
                                     )}
                                 >
@@ -145,34 +159,15 @@ export const DictionaryExamples: React.FC<DictionaryExamplesProps> = ({
 
                             {/* Grammatical Note */}
                             {grammar && (
-                                <p className={cn('text-[16px] mt-1 pl-1', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                                    📚 {grammar}
+                                <p
+                                    className={cn(
+                                        'mt-1',
+                                        isCompact ? 'text-[12px]' : 'text-[14px]',
+                                        isDark ? 'text-zinc-400' : 'text-zinc-600'
+                                    )}
+                                >
+                                    {grammar}
                                 </p>
-                            )}
-
-                            {/* Collocations */}
-                            {example.collocations && example.collocations.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                                    <span
-                                        className={cn(
-                                            'text-[14px] font-medium',
-                                            isDark ? 'text-zinc-500' : 'text-zinc-500'
-                                        )}
-                                    >
-                                        Collocations:
-                                    </span>
-                                    {example.collocations.map((coll, i) => (
-                                        <span
-                                            key={i}
-                                            className={cn(
-                                                'text-[14px] px-1.5 py-0.5 rounded',
-                                                isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-600'
-                                            )}
-                                        >
-                                            {coll}
-                                        </span>
-                                    ))}
-                                </div>
                             )}
                         </div>
                     );

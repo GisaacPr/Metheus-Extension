@@ -4,11 +4,11 @@ All notable changes to the Metheus Extension will be documented in this file.
 
 ## [1.0.0] - 2026-02-10
 
-### Fork & Rebrand
+### Initial Public Release
 
-- **Full Rebrand**: Transitioned from `asbplayer` to **Metheus Extension**.
+- **Metheus Identity**: Released publicly as **Metheus Extension** with its own product direction and repository.
 - **Repo Structure**: Migrated to a dedicated repository/monorepo structure.
-- **License**: Updated to dual license (Metheus + asbplayer authors).
+- **License**: Preserved attribution for inherited third-party portions while establishing Metheus-owned code under AGPLv3.
 
 ### New Features
 

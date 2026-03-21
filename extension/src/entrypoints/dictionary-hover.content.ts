@@ -329,7 +329,7 @@ class GlobalDictionaryHover {
 
         const detectedLang = detectLangFromText(context) || 'en';
 
-        await this.popup.show(word, context, { ...position, subtitleLanguage: detectedLang });
+        await this.popup.show(word, context, { ...position, subtitleLanguage: detectedLang, surfaceKind: 'text' });
     }
 }
 

@@ -37,11 +37,77 @@ export interface OnlineCacheEntry {
     fetchedAt: number;
 }
 
+export interface HoverLexemeCacheEntry {
+    key: string;
+    orderedCandidates: string[];
+    bestMeaning: string;
+    updatedAt: number;
+}
+
+export interface HoverContextCacheEntry {
+    key: string;
+    orderedCandidates: string[];
+    bestCandidate: string;
+    confidence: 'high' | 'medium' | 'low';
+    updatedAt: number;
+}
+
+export interface PhraseTranslationCacheEntry {
+    key: string;
+    algorithmVersion: number;
+    sourceLanguage: string;
+    targetLanguage: string;
+    createdAt: number;
+    sourceScope: 'public-shared' | 'private-local';
+    normalizedTextHash: string;
+    sourceFingerprint: string;
+    translatedText: string;
+    updatedAt: number;
+}
+
+export interface DefinitionTranslationCacheEntry {
+    key: string;
+    algorithmVersion: number;
+    sourceLanguage: string;
+    targetLanguage: string;
+    createdAt: number;
+    sourceScope: 'public-shared' | 'private-local';
+    definitionHash: string;
+    translatedText: string;
+    updatedAt: number;
+}
+
+export interface AiDefinitionFallbackCacheEntry {
+    key: string;
+    algorithmVersion: number;
+    sourceLanguage: string;
+    targetLanguage: string;
+    createdAt: number;
+    updatedAt: number;
+    sourceScope: 'public-shared' | 'private-local';
+    lookupText: string;
+    lookupHash: string;
+    contextHash: string;
+    sourceFingerprint: string;
+    lemma: string | null;
+    bestMeaning: string;
+    shortDefinition: string;
+    translations: string[];
+    confidence: 'high' | 'medium' | 'low';
+    mode: 'automatic' | 'on-demand';
+    source: 'ai-fallback';
+}
+
 export class DictionaryDatabase extends Dexie {
     chunks!: Table<DictionaryChunk, string>;
     entries!: Table<StoredDictionaryEntry, string>;
     status!: Table<DictionaryStatus, string>;
     onlineCache!: Table<OnlineCacheEntry, number>;
+    hoverLexemeCache!: Table<HoverLexemeCacheEntry, string>;
+    hoverContextCache!: Table<HoverContextCacheEntry, string>;
+    phraseTranslationCache!: Table<PhraseTranslationCacheEntry, string>;
+    definitionTranslationCache!: Table<DefinitionTranslationCacheEntry, string>;
+    aiDefinitionFallbackCache!: Table<AiDefinitionFallbackCacheEntry, string>;
 
     constructor() {
         super('MetheusDictionaries');
@@ -67,6 +133,29 @@ export class DictionaryDatabase extends Dexie {
             entries: 'id, w, lang, [lang+w]',
             status: 'language',
             onlineCache: '++id, [lang+w], fetchedAt',
+        });
+
+        this.version(4).stores({
+            chunks: 'id, language, sourceDictionaryId, chunkId, [language+sourceDictionaryId], [language+sourceDictionaryId+chunkId]',
+            entries: 'id, w, lang, [lang+w]',
+            status: 'language',
+            onlineCache: '++id, [lang+w], fetchedAt',
+            hoverLexemeCache: 'key, updatedAt',
+            hoverContextCache: 'key, updatedAt',
+            phraseTranslationCache: 'key, updatedAt, [sourceLanguage+targetLanguage]',
+            definitionTranslationCache: 'key, updatedAt, [sourceLanguage+targetLanguage]',
+        });
+
+        this.version(5).stores({
+            chunks: 'id, language, sourceDictionaryId, chunkId, [language+sourceDictionaryId], [language+sourceDictionaryId+chunkId]',
+            entries: 'id, w, lang, [lang+w]',
+            status: 'language',
+            onlineCache: '++id, [lang+w], fetchedAt',
+            hoverLexemeCache: 'key, updatedAt',
+            hoverContextCache: 'key, updatedAt',
+            phraseTranslationCache: 'key, updatedAt, [sourceLanguage+targetLanguage]',
+            definitionTranslationCache: 'key, updatedAt, [sourceLanguage+targetLanguage]',
+            aiDefinitionFallbackCache: 'key, updatedAt, [sourceLanguage+targetLanguage]',
         });
     }
 
@@ -239,6 +328,86 @@ export class DictionaryDatabase extends Dexie {
             return count;
         } catch {
             return 0;
+        }
+    }
+
+    async getPhraseTranslationCache(key: string): Promise<PhraseTranslationCacheEntry | undefined> {
+        try {
+            return await this.phraseTranslationCache.get(key);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async getHoverLexemeCache(key: string): Promise<HoverLexemeCacheEntry | undefined> {
+        try {
+            return await this.hoverLexemeCache.get(key);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async setHoverLexemeCache(entry: HoverLexemeCacheEntry): Promise<void> {
+        try {
+            await this.hoverLexemeCache.put(entry);
+        } catch (e) {
+            console.warn('[DictDB] Failed to write hover lexeme cache:', e);
+        }
+    }
+
+    async getHoverContextCache(key: string): Promise<HoverContextCacheEntry | undefined> {
+        try {
+            return await this.hoverContextCache.get(key);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async setHoverContextCache(entry: HoverContextCacheEntry): Promise<void> {
+        try {
+            await this.hoverContextCache.put(entry);
+        } catch (e) {
+            console.warn('[DictDB] Failed to write hover context cache:', e);
+        }
+    }
+
+    async setPhraseTranslationCache(entry: PhraseTranslationCacheEntry): Promise<void> {
+        try {
+            await this.phraseTranslationCache.put(entry);
+        } catch (e) {
+            console.warn('[DictDB] Failed to write phrase translation cache:', e);
+        }
+    }
+
+    async getDefinitionTranslationCache(key: string): Promise<DefinitionTranslationCacheEntry | undefined> {
+        try {
+            return await this.definitionTranslationCache.get(key);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async setDefinitionTranslationCache(entry: DefinitionTranslationCacheEntry): Promise<void> {
+        try {
+            await this.definitionTranslationCache.put(entry);
+        } catch (e) {
+            console.warn('[DictDB] Failed to write definition translation cache:', e);
+        }
+    }
+
+    async getAiDefinitionFallbackCache(key: string): Promise<AiDefinitionFallbackCacheEntry | undefined> {
+        try {
+            return await this.aiDefinitionFallbackCache.get(key);
+        } catch {
+            return undefined;
+        }
+    }
+
+    async setAiDefinitionFallbackCache(entry: AiDefinitionFallbackCacheEntry): Promise<void> {
+        try {
+            await this.aiDefinitionFallbackCache.put(entry);
+        } catch (e) {
+            console.warn('[DictDB] Failed to write AI definition fallback cache:', e);
         }
     }
 }

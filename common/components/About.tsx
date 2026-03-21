@@ -207,15 +207,15 @@ const About = ({ appVersion, extensionVersion }: Props) => {
             <Box style={{ width: '100%', textAlign: 'center' }}>
                 <LogoIcon style={{ width: 48, height: 48 }} />
                 <br />
-                <Link variant="h5" href="https://github.com/killergerbah/asbplayer">
-                    asbplayer
+                <Link variant="h5" href="https://github.com/GisaacPr/Metheus-Extension">
+                    Metheus Extension
                 </Link>
                 <br />
                 {appVersion && (
                     <>
                         <Typography variant="caption">
                             {t('about.appVersion')}{' '}
-                            <Link href={`https://github.com/killergerbah/asbplayer/commit/${appVersion}`}>
+                            <Link href={`https://github.com/GisaacPr/Metheus-Extension/commit/${appVersion}`}>
                                 {appVersion}
                             </Link>
                         </Typography>
@@ -225,7 +225,7 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                 {extensionVersion && (
                     <Typography variant="caption">
                         {t('about.extensionVersion')}{' '}
-                        <Link href={`https://github.com/killergerbah/asbplayer/releases/tag/v${extensionVersion}`}>
+                        <Link href={`https://github.com/GisaacPr/Metheus-Extension/releases/tag/v${extensionVersion}`}>
                             {extensionVersion}
                         </Link>
                     </Typography>
@@ -243,7 +243,7 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                     ---
                     <br />
                     <br />
-                    The core playback engine and extension infrastructure are based on the asbplayer project:
+                    This project includes inherited open-source portions that remain credited under the original MIT notice:
                     <br />
                     <br />
                     MIT License

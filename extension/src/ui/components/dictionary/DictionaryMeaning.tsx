@@ -19,6 +19,7 @@ interface DictionaryMeaningProps {
     onHoverDefinition?: (index?: number) => void;
     onDefinitionTranslation?: (index: number, text: string) => void;
     themeType?: 'dark' | 'light';
+    density?: 'comfortable' | 'compact';
 }
 
 interface MeaningItemProps {
@@ -29,6 +30,7 @@ interface MeaningItemProps {
     onHoverChange?: (hovered: boolean) => void;
     onTranslationLoaded?: (index: number, text: string) => void;
     themeType?: 'dark' | 'light';
+    density?: 'comfortable' | 'compact';
 }
 
 const MeaningItem: React.FC<MeaningItemProps> = ({
@@ -39,10 +41,12 @@ const MeaningItem: React.FC<MeaningItemProps> = ({
     onHoverChange,
     onTranslationLoaded,
     themeType = 'dark',
+    density = 'comfortable',
 }) => {
     const { locale } = useTranslation();
     const { translateText } = useGoogleTranslation();
     const [translatedMeaning, setTranslatedMeaning] = useState<string | null>(null);
+    const isCompact = density === 'compact';
 
     // Auto-translate if locale is not English (assuming dictionary is EN or we want to help user)
     // In a real app we might check entry.language vs locale more strictly
@@ -50,7 +54,7 @@ const MeaningItem: React.FC<MeaningItemProps> = ({
         if (locale && locale !== 'en' && !translatedMeaning) {
             // strip html tags for translation to be safe
             const cleanText = def.meaning.replace(/<[^>]*>/g, '');
-            translateText(cleanText, locale).then((res) => {
+            translateText(cleanText, locale, 'auto', { cacheKind: 'definition' }).then((res) => {
                 if (res) {
                     setTranslatedMeaning(res);
                     onTranslationLoaded?.(index, res);
@@ -75,27 +79,13 @@ const MeaningItem: React.FC<MeaningItemProps> = ({
             onMouseEnter={() => onHoverChange?.(true)}
             onMouseLeave={() => onHoverChange?.(false)}
         >
-            <div className="flex gap-3 p-2">
-                {/* Number Badge */}
-                <div
-                    className={cn(
-                        'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[16px] font-black mt-0.5 shadow-sm transition-all',
-                        isSelected
-                            ? 'bg-gradient-to-br from-[#39FF14] to-[#1FD100] text-zinc-950'
-                            : themeType === 'dark'
-                              ? 'bg-zinc-800 text-zinc-100 group-hover:bg-gradient-to-br group-hover:from-[#39FF14] group-hover:to-[#1FD100] group-hover:text-zinc-950'
-                              : 'bg-zinc-200 text-zinc-700 group-hover:bg-gradient-to-br group-hover:from-[#39FF14] group-hover:to-[#1FD100] group-hover:text-zinc-950'
-                    )}
-                >
-                    {def.index || index + 1}
-                </div>
-
-                {/* Definition Content */}
+            <div className={cn(isCompact ? 'p-2.5' : 'p-3')}>
                 <div className="flex-1 space-y-2">
                     {/* Meaning - Supports HTML for LN dicts */}
                     <div
                         className={cn(
-                            'text-[22px] leading-relaxed font-medium [&>i]:italic [&>b]:font-bold',
+                            'leading-relaxed font-medium [&>i]:italic [&>b]:font-bold',
+                            isCompact ? 'text-[15px]' : 'text-[19px]',
                             themeType === 'dark' ? 'text-zinc-100' : 'text-zinc-800'
                         )}
                         dangerouslySetInnerHTML={{ __html: sanitizeMeaningHtml(def.meaning) }}
@@ -105,7 +95,8 @@ const MeaningItem: React.FC<MeaningItemProps> = ({
                     {translatedMeaning && (
                         <div
                             className={cn(
-                                'text-[16px] border-l-2 border-[#00F0FF]/45 pl-2 font-medium',
+                                'font-medium',
+                                isCompact ? 'text-[13px]' : 'text-[15px]',
                                 themeType === 'dark' ? 'text-[#00F0FF]' : 'text-[#00C6D9]'
                             )}
                         >
@@ -117,11 +108,12 @@ const MeaningItem: React.FC<MeaningItemProps> = ({
                     {def.context && (
                         <p
                             className={cn(
-                                'text-[18px] italic pl-3 border-l-2',
-                                themeType === 'dark' ? 'text-zinc-400 border-zinc-700' : 'text-zinc-600 border-zinc-200'
+                                'italic',
+                                isCompact ? 'text-[13px]' : 'text-[15px]',
+                                themeType === 'dark' ? 'text-zinc-400' : 'text-zinc-600'
                             )}
                         >
-                            💡 {def.context}
+                            {def.context}
                         </p>
                     )}
 
@@ -161,6 +153,7 @@ export const DictionaryMeaning: React.FC<DictionaryMeaningProps> = ({
     onHoverDefinition,
     onDefinitionTranslation,
     themeType = 'dark',
+    density = 'comfortable',
 }) => {
     if (!definitions || definitions.length === 0) {
         return (
@@ -173,7 +166,7 @@ export const DictionaryMeaning: React.FC<DictionaryMeaningProps> = ({
     }
 
     return (
-        <div className="space-y-3">
+        <div className={cn(density === 'compact' ? 'space-y-2' : 'space-y-3')}>
             {definitions.map((def, idx) => (
                 <MeaningItem
                     key={idx}
@@ -184,6 +177,7 @@ export const DictionaryMeaning: React.FC<DictionaryMeaningProps> = ({
                     onHoverChange={(hovered) => onHoverDefinition?.(hovered ? idx : undefined)}
                     themeType={themeType}
                     onTranslationLoaded={onDefinitionTranslation}
+                    density={density}
                 />
             ))}
         </div>

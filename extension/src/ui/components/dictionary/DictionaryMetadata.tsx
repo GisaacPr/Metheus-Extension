@@ -8,33 +8,47 @@ interface DictionaryMetadataProps {
         key: string;
     }[];
     themeType?: 'dark' | 'light';
+    density?: 'comfortable' | 'compact';
 }
 
-export const DictionaryMetadata: React.FC<DictionaryMetadataProps> = ({ data, themeType = 'dark' }) => {
+export const DictionaryMetadata: React.FC<DictionaryMetadataProps> = ({
+    data,
+    themeType = 'dark',
+    density = 'comfortable',
+}) => {
     const isDark = themeType === 'dark';
+    const isCompact = density === 'compact';
 
     if (!data || data.length === 0) {
         return (
-            <div className={cn('text-center py-8 text-[18px]', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+            <div
+                className={cn(
+                    'text-center py-8',
+                    isCompact ? 'text-[14px]' : 'text-[18px]',
+                    isDark ? 'text-zinc-400' : 'text-zinc-600'
+                )}
+            >
                 No detailed metadata available for this word.
             </div>
         );
     }
 
     return (
-        <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-y-3">
+        <div className={cn(isCompact ? 'space-y-3' : 'space-y-4')}>
+            <div className={cn('grid grid-cols-1', isCompact ? 'gap-y-2' : 'gap-y-3')}>
                 {data.map(({ label, value, key }) => (
                     <div
                         key={key}
                         className={cn(
-                            'flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 p-2 rounded-lg transition-colors',
+                            'flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 rounded-lg transition-colors',
+                            isCompact ? 'p-1.5' : 'p-2',
                             isDark ? 'hover:bg-zinc-900/30' : 'hover:bg-zinc-50'
                         )}
                     >
                         <span
                             className={cn(
-                                'font-semibold text-[16px] sm:min-w-[120px]',
+                                'font-semibold sm:min-w-[120px]',
+                                isCompact ? 'text-[12px]' : 'text-[16px]',
                                 isDark ? 'text-zinc-400' : 'text-zinc-600'
                             )}
                         >
@@ -42,7 +56,8 @@ export const DictionaryMetadata: React.FC<DictionaryMetadataProps> = ({ data, th
                         </span>
                         <span
                             className={cn(
-                                'text-[18px] font-medium break-words leading-relaxed whitespace-pre-wrap',
+                                'font-medium break-words leading-relaxed whitespace-pre-wrap',
+                                isCompact ? 'text-[14px]' : 'text-[18px]',
                                 isDark ? 'text-zinc-100' : 'text-zinc-900'
                             )}
                         >

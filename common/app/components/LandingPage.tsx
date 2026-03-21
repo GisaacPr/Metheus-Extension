@@ -46,6 +46,7 @@ interface Props {
     extension: ChromeExtension;
     latestExtensionVersion: string;
     extensionUrl: string;
+    extensionStoreName: string;
     loading: boolean;
     dragging: boolean;
     appBarHidden: boolean;
@@ -60,6 +61,7 @@ export default function LandingPage({
     extension,
     latestExtensionVersion,
     extensionUrl,
+    extensionStoreName,
     loading,
     dragging,
     appBarHidden,
@@ -93,7 +95,7 @@ export default function LandingPage({
                             <Trans i18nKey="landing.extensionNotInstalled">
                                 Install the
                                 <Link color="primary" target="_blank" rel="noreferrer" href={extensionUrl}>
-                                    Chrome extension
+                                    {extensionStoreName}
                                 </Link>
                                 to sync subtitles with streaming video.
                             </Trans>

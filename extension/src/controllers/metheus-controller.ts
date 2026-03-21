@@ -10,6 +10,8 @@ import { getMetheusSyncService, MetheusSyncService, WordStatus } from '../servic
 import { getMetheusDictionaryService, MetheusDictionaryService, DictionaryEntry } from '../services/metheus-dictionary';
 import { getSubtitleColorizer, SubtitleColorizer } from '../services/subtitle-colorizer';
 import { getWordPopup, WordPopup } from '../services/word-popup';
+import { getWordHoverStack, WordHoverStack } from '../services/word-hover-stack';
+import { resolveHoverStack } from '../services/hover-stack-resolver';
 import { VocabularyService } from '../services/vocabulary-service';
 import { tokenizeText } from '../ui/dictionary-adapter';
 import SubtitleController from './subtitle-controller';
@@ -25,6 +27,7 @@ export class MetheusController {
     private readonly _dictionaryService: MetheusDictionaryService;
     private readonly _colorizer: SubtitleColorizer;
     private readonly _popup: WordPopup;
+    private readonly _hoverStack: WordHoverStack;
     private readonly _options: MetheusControllerOptions;
 
     private _enabled: boolean = false;
@@ -40,6 +43,7 @@ export class MetheusController {
         this._dictionaryService = getMetheusDictionaryService(settingsProvider);
         this._colorizer = getSubtitleColorizer(settingsProvider);
         this._popup = getWordPopup(settingsProvider);
+        this._hoverStack = getWordHoverStack(settingsProvider);
         this._options = options;
     }
 
@@ -89,6 +93,12 @@ export class MetheusController {
             // Set up word click handler
             this._boundHandleWordClick = this.handleWordClick.bind(this);
             this._colorizer.setOnWordClick(this._boundHandleWordClick);
+            this._colorizer.setOnWordHover((word, sentence, element) => {
+                void this.handleWordHover(word, sentence, element);
+            });
+            this._colorizer.setOnWordHoverEnd(() => {
+                this._hoverStack.hide();
+            });
 
             // Initialize popup callbacks
             this._popup.setOnKnowIt((word) => this._handleKnowIt(word));
@@ -150,6 +160,47 @@ export class MetheusController {
      */
     stopObserving(): void {
         this._colorizer.stopObserving();
+        this._hoverStack.hide();
+    }
+
+    async handleWordHover(word: string, sentence: string, element: HTMLElement): Promise<void> {
+        if (!this._enabled) return;
+        if (document.body.classList.contains('asbplayer-popup-active')) return;
+
+        const rect = element.getBoundingClientRect();
+        this._hoverStack.show({
+            anchorRect: rect,
+            bestTranslation: '',
+            alternatives: [],
+            isLoading: true,
+        });
+
+        const sourceLanguage =
+            (element.closest('div[data-track]') as HTMLElement | null)?.getAttribute?.('data-track-language') ||
+            this._language;
+
+        const resolved = await resolveHoverStack(this._settingsProvider, {
+            word,
+            contextText: sentence,
+            sourceLanguage: sourceLanguage || this._language,
+        });
+
+        if (document.body.classList.contains('asbplayer-popup-active')) {
+            this._hoverStack.hide();
+            return;
+        }
+
+        if (!resolved) {
+            this._hoverStack.hide();
+            return;
+        }
+
+        this._hoverStack.show({
+            anchorRect: rect,
+            bestTranslation: resolved.bestTranslation,
+            alternatives: resolved.alternatives,
+            isLoading: false,
+        });
     }
 
     /**
@@ -159,6 +210,7 @@ export class MetheusController {
         if (!this._enabled) return;
 
         console.log('[Metheus] Word clicked:', word);
+        this._hoverStack.hide();
 
         // Calculate position based on element
         // V3 Fix: Use 'div[data-track]' to find the specific subtitle line container.
@@ -245,7 +297,7 @@ export class MetheusController {
             this._pausedForDictionaryPopup = true;
         }
 
-        await this._popup.show(word, sentence, { ...position, subtitleLanguage } as any, longestMatch);
+        await this._popup.show(word, sentence, { ...position, subtitleLanguage, surfaceKind: 'video' } as any, longestMatch);
     }
 
     /**
@@ -339,7 +391,7 @@ export class MetheusController {
             },
         };
 
-        await this._popup.show(word, sentence, { ...popupPosition, subtitleLanguage } as any);
+        await this._popup.show(word, sentence, { ...popupPosition, subtitleLanguage, surfaceKind: 'video' } as any);
     }
 
     /**

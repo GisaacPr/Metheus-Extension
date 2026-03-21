@@ -24,6 +24,8 @@ export interface PopupPosition {
     };
     /** Optional: detected subtitle language for this click */
     subtitleLanguage?: string;
+    /** Surface kind helps the popup adjust density without changing video sizing. */
+    surfaceKind?: 'video' | 'text';
 }
 
 export interface PopupOptions {

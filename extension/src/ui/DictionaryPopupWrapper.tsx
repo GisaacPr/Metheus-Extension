@@ -3,20 +3,44 @@ import { createRoot, Root } from 'react-dom/client';
 import { SettingsProvider } from '@metheus/common/settings';
 import { getMetheusDictionaryService } from '../services/metheus-dictionary';
 import { getMetheusSyncService } from '../services/metheus-sync';
-import { normalizeAndMergeEntries, normalizeEntry, tokenizeText } from './dictionary-adapter';
+import { normalizeAndMergeEntries, tokenizeText } from './dictionary-adapter';
 import { DictionaryPopup } from './components/DictionaryPopup';
 import { UnifiedEntry } from './types';
 import { getSubtitleColorizer } from '../services/subtitle-colorizer';
 import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { createTheme } from '@metheus/common/theme';
-import { type Theme, StyledEngineProvider } from '@mui/material/styles';
+import { StyledEngineProvider } from '@mui/material/styles';
 import ScopedCssBaseline from '@mui/material/ScopedCssBaseline';
 // Note: Dictionary popup must use the *same* SettingsProvider instance passed in props,
 // otherwise it can read from a different storage namespace and never reflect theme updates.
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
+import { analyzeLexicalUnit } from '../services/lexical-analysis';
+import { resolveSenseRanking } from '../services/sense-ranking';
+import { getSemanticReranker } from '../services/semantic-reranker';
+import { defineWithAiFallback } from '../services/definition-fallback';
+import type { HoverSenseCandidate } from '../services/language-intelligence';
 
 const METHEUS_STANDARD_NOTE_TYPE = 'STANDARD' as const;
+const semanticReranker = getSemanticReranker();
+
+const sanitizeText = (value?: string | null) =>
+    (value || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const uniqueNonEmpty = (items: Array<string | null | undefined>) =>
+    Array.from(new Set(items.map((item) => sanitizeText(item)).filter(Boolean)));
+
+const extractBestDefinitionIndex = (senseKey?: string | null): number | null => {
+    const match = (senseKey || '').match(/^def:(\d+):/);
+    if (!match) {
+        return null;
+    }
+    const index = Number.parseInt(match[1], 10);
+    return Number.isFinite(index) ? index : null;
+};
 
 interface DictionaryPopupWrapperProps {
     word: string;
@@ -36,6 +60,7 @@ interface DictionaryPopupWrapperProps {
             width: number;
             height: number;
         };
+        surfaceKind?: 'video' | 'text';
     };
     onClose: () => void;
     settingsProvider: SettingsProvider;
@@ -145,6 +170,95 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
         };
     };
 
+    const buildSenseCandidates = React.useCallback(
+        (
+            entry: UnifiedEntry,
+            lexical: ReturnType<typeof analyzeLexicalUnit>,
+            matchedVariant: string | null
+        ): HoverSenseCandidate[] => {
+            const wordTranslations = uniqueNonEmpty(entry.translations || []);
+            return (entry.definitions || []).flatMap((definition, definitionIndex) => {
+                const meaning = sanitizeText(definition.meaning);
+                const examples = uniqueNonEmpty((definition.examples || []).map((example) => example.sentence)).slice(0, 3);
+                const translations = wordTranslations.length > 0 ? wordTranslations : [meaning];
+                return translations.slice(0, 4).map((translation, translationIndex) => ({
+                    senseKey: `def:${definitionIndex}:${translationIndex}`,
+                    translation,
+                    meaning,
+                    shortDefinition: meaning,
+                    translations: [translation],
+                    examples,
+                    source: 'local-translation' as const,
+                    lemma: lexical.lemma,
+                    matchedVariant,
+                    pos: null,
+                }));
+            });
+        },
+        []
+    );
+
+    const applySenseResolution = React.useCallback(
+        (
+            entry: UnifiedEntry,
+            lexical: ReturnType<typeof analyzeLexicalUnit>,
+            matchedVariant: string | null,
+            sourceLanguage: string
+        ): Promise<UnifiedEntry> => {
+            const candidates = buildSenseCandidates(entry, lexical, matchedVariant);
+            let resolution = resolveSenseRanking({
+                candidates,
+                sourceLanguage,
+                translatedContext: sentence,
+                preferredPos: null,
+                localTranslationSet: entry.translations || [],
+                usedLemma: Boolean(lexical.lemma && matchedVariant === lexical.lemma),
+            });
+
+            return semanticReranker
+                .rerank({
+                    contextText: sentence,
+                    sourceLanguage,
+                    candidates: resolution?.orderedCandidates || candidates,
+                })
+                .then((semanticResolution) => {
+                    if (semanticResolution) {
+                        resolution = semanticResolution;
+                    }
+
+                    if (!resolution) {
+                        return entry;
+                    }
+
+                    const bestDefinitionIndex = extractBestDefinitionIndex(resolution.bestCandidate.senseKey);
+                    const reorderedDefinitions =
+                        bestDefinitionIndex === null
+                            ? entry.definitions
+                            : [
+                                  entry.definitions[bestDefinitionIndex],
+                                  ...entry.definitions.filter((_, index) => index !== bestDefinitionIndex),
+                              ].map((definition, index) => ({
+                                  ...definition,
+                                  index: index + 1,
+                              }));
+
+                    const reorderedTranslations = uniqueNonEmpty([
+                        resolution.bestCandidate.translation,
+                        ...(entry.translations || []),
+                        ...resolution.orderedCandidates.map((candidate) => candidate.translation),
+                    ]);
+
+                    return {
+                        ...entry,
+                        definitions: reorderedDefinitions,
+                        translations: reorderedTranslations.length > 0 ? reorderedTranslations : entry.translations,
+                    };
+                })
+                .catch(() => entry);
+        },
+        [buildSenseCandidates, sentence]
+    );
+
     const lookupEntry = React.useCallback(
         async (text: string, langOrder: string[]): Promise<UnifiedEntry | null> => {
             console.log(`[PopupWrapper] lookupEntry called for '${text}' with languages: [${langOrder.join(', ')}]`);
@@ -175,6 +289,42 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
         [dictionaryService]
     );
 
+    const lookupEntryByVariants = React.useCallback(
+        async (
+            text: string,
+            langOrder: string[],
+            sourceLanguage: string
+        ): Promise<{
+            entry: UnifiedEntry | null;
+            lexical: ReturnType<typeof analyzeLexicalUnit>;
+            matchedVariant: string | null;
+        }> => {
+            const lexical = analyzeLexicalUnit({
+                text,
+                language: sourceLanguage,
+                contextText: sentence,
+            });
+
+            for (const variant of lexical.lookupVariants.length > 0 ? lexical.lookupVariants : [text]) {
+                const entry = await lookupEntry(variant, langOrder);
+                if (entry) {
+                    return {
+                        entry,
+                        lexical,
+                        matchedVariant: variant,
+                    };
+                }
+            }
+
+            return {
+                entry: null,
+                lexical,
+                matchedVariant: null,
+            };
+        },
+        [lookupEntry, sentence]
+    );
+
     const handleGetDefinition = React.useCallback(
         async (w: string): Promise<UnifiedEntry | null> => {
             if (!isOpen) return null; // Avoid work during preload/hidden state
@@ -182,6 +332,7 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
             console.log(`[PopupWrapper] handleGetDefinition called for word: '${w}'`);
             const settings = await settingsProvider.get(['metheusTargetLanguage']);
             const targetLang = settings.metheusTargetLanguage || 'en';
+            const sourceLanguage = subtitleLanguage || targetLang || 'en';
 
             // ONLY search the user's current study language + subtitle language.
             // Do NOT iterate all 21 supported languages — this was the main perf bottleneck.
@@ -195,27 +346,47 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
 
             // 1. Lookup Longest Match (if exists)
             let longestEntry: UnifiedEntry | null = null;
+            let longestLexical: ReturnType<typeof analyzeLexicalUnit> | null = null;
+            let longestMatchedVariant: string | null = null;
             if (longestMatch && longestMatch.length > w.length) {
                 // Clean logic similar to web app
                 const cleanLongest = longestMatch.trim().replace(/[.,!?;:()]/g, '');
-                longestEntry = await lookupEntry(cleanLongest, languageOrder);
+                const longestLookup = await lookupEntryByVariants(cleanLongest, languageOrder, sourceLanguage);
+                longestEntry = longestLookup.entry;
+                longestLexical = longestLookup.lexical;
+                longestMatchedVariant = longestLookup.matchedVariant;
             }
 
             // 2. Lookup Clicked Word
-            const mainEntry = await lookupEntry(w, languageOrder);
+            const mainLookup = await lookupEntryByVariants(w, languageOrder, sourceLanguage);
+            const mainEntry = mainLookup.entry;
 
             // 3. Merge Strategies
             if (mainEntry) {
                 // Context ranking first
                 let result = rankDefinitionsByContext(mainEntry, sentence);
+                result = await applySenseResolution(
+                    result,
+                    mainLookup.lexical,
+                    mainLookup.matchedVariant,
+                    sourceLanguage
+                );
 
                 // If we found a longest match, prepend its definitions!
                 if (longestEntry && longestEntry.definitions.length > 0) {
+                    const rankedLongest = longestLexical
+                        ? await applySenseResolution(
+                              rankDefinitionsByContext(longestEntry, sentence),
+                              longestLexical,
+                              longestMatchedVariant,
+                              sourceLanguage
+                          )
+                        : rankDefinitionsByContext(longestEntry, sentence);
                     // We might want to mark them visually as "Phrase Match" in the future
-                    result.definitions = [...longestEntry.definitions, ...result.definitions];
+                    result.definitions = [...rankedLongest.definitions, ...result.definitions];
                     // Also merge badges if useful
-                    if (longestEntry.badges) {
-                        result.badges = [...longestEntry.badges, ...result.badges];
+                    if (rankedLongest.badges) {
+                        result.badges = [...rankedLongest.badges, ...result.badges];
                     }
                 }
                 console.log(
@@ -224,17 +395,24 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
                 return result;
             } else if (longestEntry) {
                 // Fallback: Clicked word not found, but phrase was? Show phrase.
-                const result = rankDefinitionsByContext(longestEntry, sentence);
+                const rankedLongest = longestLexical
+                    ? await applySenseResolution(
+                          rankDefinitionsByContext(longestEntry, sentence),
+                          longestLexical,
+                          longestMatchedVariant,
+                          sourceLanguage
+                      )
+                    : rankDefinitionsByContext(longestEntry, sentence);
                 console.log(
-                    `[PopupWrapper] Returning longest match entry for '${w}': ${result.definitions?.length || 0} definitions`
+                    `[PopupWrapper] Returning longest match entry for '${w}': ${rankedLongest.definitions?.length || 0} definitions`
                 );
-                return result;
+                return rankedLongest;
             }
 
             console.log(`[PopupWrapper] No entry found for '${w}', returning null`);
             return null;
         },
-        [longestMatch, sentence, subtitleLanguage, settingsProvider, isOpen, lookupEntry]
+        [applySenseResolution, isOpen, longestMatch, lookupEntryByVariants, sentence, settingsProvider, subtitleLanguage]
     );
 
     /**
@@ -588,6 +766,34 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
         [settingsProvider, syncService]
     );
 
+    const handleDefineWithAi = React.useCallback(
+        async (lookupText: string): Promise<UnifiedEntry | null> => {
+            const settings = (await settingsProvider.getAll()) as Record<string, any>;
+            const sourceLanguage = subtitleLanguage || settings.metheusTargetLanguage || 'en';
+            const targetLanguage =
+                settings.ln_cached_native_language || settings.language || settings.ln_cached_interface_language || 'en';
+            const lexical = analyzeLexicalUnit({
+                text: lookupText,
+                language: sourceLanguage,
+                contextText: sentence,
+            });
+
+            return defineWithAiFallback(settingsProvider, {
+                lookupText,
+                contextText: sentence,
+                sourceLanguage,
+                targetLanguage,
+                pos: null,
+                lemma: lexical.lemma,
+                localCandidates: [],
+                mode: 'on-demand',
+                sourceScope: 'private-local',
+                sourceFingerprint: null,
+            });
+        },
+        [sentence, settingsProvider, subtitleLanguage]
+    );
+
     // Create emotion cache optimized for Shadow DOM
     const cache = React.useMemo(() => {
         return createCache({
@@ -628,6 +834,8 @@ export const DictionaryPopupWrapper: React.FC<DictionaryPopupWrapperProps> = ({
                                 onCreateCard={handleCreateCard}
                                 onOpenSavedCard={handleOpenSavedCard}
                                 onGetWordStatus={handleGetWordStatus}
+                                onDefineWithAi={handleDefineWithAi}
+                                canDefineWithAi={true}
                             />
                         </ScopedCssBaseline>
                     </ThemeProvider>

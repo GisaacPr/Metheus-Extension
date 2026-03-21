@@ -251,7 +251,7 @@ export default defineContentScript({
                         }
 
                         const popup = getWordPopup(settingsProvider);
-                        void popup.show(word, sentence, { x, y, anchorRect } as any);
+                        void popup.show(word, sentence, { x, y, anchorRect, surfaceKind: 'video' } as any);
                         break;
                     }
                     case 'metheus-show-popup': {
@@ -302,7 +302,13 @@ export default defineContentScript({
                         });
 
                         const popup = getWordPopup(settingsProvider);
-                        void popup.show(word, sentence, { x, y, anchorRect, subtitleLanguage } as any);
+                        void popup.show(word, sentence, {
+                            x,
+                            y,
+                            anchorRect,
+                            subtitleLanguage,
+                            surfaceKind: 'video',
+                        } as any);
                         break;
                     }
                     case 'copy-to-clipboard':

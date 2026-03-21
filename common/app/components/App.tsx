@@ -66,8 +66,29 @@ import { useServiceWorker } from '../hooks/use-service-worker';
 import NeedRefreshDialog from './NeedRefreshDialog';
 
 const latestExtensionVersion = '1.12.0';
-const extensionUrl =
-    'https://chromewebstore.google.com/detail/metheus-extension-languag/megcmimgojgpnhkenbgdjbklbmcpglcf?hl=es&utm_source=ext_sidebar';
+const extensionStoreUrls = {
+    chrome: 'https://chromewebstore.google.com/detail/metheus-extension-languag/megcmimgojgpnhkenbgdjbklbmcpglcf?hl=es&utm_source=ext_sidebar',
+    firefox: 'https://addons.mozilla.org/es-ES/firefox/addon/metheus-app/',
+    edge: 'https://microsoftedge.microsoft.com/addons/detail/metheus-extension-langua/khghbiiioebiljnnmfmlaeppffoffhpa',
+} as const;
+
+function detectExtensionStore() {
+    if (typeof navigator === 'undefined') {
+        return { url: extensionStoreUrls.chrome, name: 'Chrome Web Store' };
+    }
+
+    const userAgent = navigator.userAgent;
+
+    if (/Edg\//i.test(userAgent)) {
+        return { url: extensionStoreUrls.edge, name: 'Edge Add-ons' };
+    }
+
+    if (/Firefox\//i.test(userAgent)) {
+        return { url: extensionStoreUrls.firefox, name: 'Firefox Add-ons' };
+    }
+
+    return { url: extensionStoreUrls.chrome, name: 'Chrome Web Store' };
+}
 
 const INPUT_ACCEPT_FILE_EXTENSIONS =
     '.srt,.ass,.vtt,.sup,.mp3,.m4a,.aac,.flac,.ogg,.wav,.opus,.mkv,.mp4,.avi,.m4v,.webm';
@@ -249,6 +270,7 @@ function App({
         settings.subtitleHtml,
         settings.convertNetflixRuby,
     ]);
+    const extensionStore = useMemo(() => detectExtensionStore(), []);
     const webSocketClient = useAppWebSocketClient({ settings });
     const [subtitles, setSubtitles] = useState<DisplaySubtitleModel[]>([]);
     const playbackPreferences = usePlaybackPreferences(settings, extension);
@@ -1206,7 +1228,7 @@ function App({
                                 onClose={handleCloseNeedRefreshDialog}
                             />
                             <Bar
-                                title={fileName || 'asbplayer'}
+                                title={fileName || 'Metheus'}
                                 drawerWidth={drawerWidth}
                                 drawerOpen={effectiveCopyHistoryOpen}
                                 hidden={appBarHidden}
@@ -1230,7 +1252,8 @@ function App({
                                     {nothingLoaded && (
                                         <LandingPage
                                             latestExtensionVersion={latestExtensionVersion}
-                                            extensionUrl={extensionUrl}
+                                            extensionUrl={extensionStore.url}
+                                            extensionStoreName={extensionStore.name}
                                             extension={extension}
                                             loading={loading}
                                             dragging={dragging}

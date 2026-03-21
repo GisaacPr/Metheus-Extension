@@ -11,6 +11,8 @@ import { ExtensionSettingsStorage } from '../services/extension-settings-storage
 import type { WordStatus } from '../services/metheus-sync';
 import { SubtitleColorizer } from '../services/subtitle-colorizer';
 import { getWordPopup, WordPopup } from '../services/word-popup';
+import { getWordHoverStack, WordHoverStack } from '../services/word-hover-stack';
+import { resolveHoverStack } from '../services/hover-stack-resolver';
 
 // Safe elements to colorize (only text content elements)
 const SAFE_COLORIZE_SELECTORS = [
@@ -411,6 +413,7 @@ class PageColorizer {
     private settingsProvider: SettingsProvider;
     private colorizer: SubtitleColorizer | null = null;
     private popup: WordPopup;
+    private hoverStack: WordHoverStack;
     private colorizeEnabled: boolean = true;
     private userHidden: boolean = false;
     private processedCount: number = 0;
@@ -433,6 +436,9 @@ class PageColorizer {
     private scrollHandler: (() => void) | null = null;
     private resizeHandler: (() => void) | null = null;
     private clickHandler: ((e: Event) => void) | null = null;
+    private hoverOverHandler: ((e: Event) => void) | null = null;
+    private hoverOutHandler: ((e: Event) => void) | null = null;
+    private lastHoveredWord: HTMLElement | null = null;
 
     private normalizeSentence(text: string): string {
         return text
@@ -441,6 +447,14 @@ class PageColorizer {
             .replace(/\s+([,.;!?])/g, '$1')
             .replace(/\s*-\s*/g, '-')
             .trim();
+    }
+
+    private isVideoManagedWord(wordEl: HTMLElement): boolean {
+        return Boolean(
+            wordEl.closest(
+                '[data-track], .asbplayer-subtitles, .asbplayer-subtitles-container-bottom, .asbplayer-subtitles-container-top, .asbplayer-bottom-subtitles, .asbplayer-top-subtitles, .player-timedtext, [data-uia="subtitle-text"]'
+            )
+        );
     }
 
     private resolveSentenceForWord(wordEl: HTMLElement): string {
@@ -518,6 +532,52 @@ class PageColorizer {
         const storage = new ExtensionSettingsStorage();
         this.settingsProvider = new SettingsProvider(storage);
         this.popup = getWordPopup(this.settingsProvider);
+        this.hoverStack = getWordHoverStack(this.settingsProvider);
+    }
+
+    private detectLangFromText(text: string): string | undefined {
+        if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return 'ja';
+        if (/[\uAC00-\uD7AF]/.test(text)) return 'ko';
+        if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
+        return undefined;
+    }
+
+    private async showWordHover(word: string, sentence: string, element: HTMLElement): Promise<void> {
+        if (document.body.classList.contains('asbplayer-popup-active')) {
+            return;
+        }
+
+        const rect = element.getBoundingClientRect();
+        this.hoverStack.show({
+            anchorRect: rect,
+            bestTranslation: '',
+            alternatives: [],
+            isLoading: true,
+        });
+
+        const sourceLanguage = this.detectLangFromText(sentence) || 'en';
+        const resolved = await resolveHoverStack(this.settingsProvider, {
+            word,
+            contextText: sentence,
+            sourceLanguage,
+        });
+
+        if (document.body.classList.contains('asbplayer-popup-active')) {
+            this.hoverStack.hide();
+            return;
+        }
+
+        if (!resolved) {
+            this.hoverStack.hide();
+            return;
+        }
+
+        this.hoverStack.show({
+            anchorRect: rect,
+            bestTranslation: resolved.bestTranslation,
+            alternatives: resolved.alternatives,
+            isLoading: false,
+        });
     }
 
     async initialize(): Promise<void> {
@@ -641,14 +701,23 @@ class PageColorizer {
             await this.colorizer.initialize();
 
             this.colorizer.onWordClick = async (word: string, sentence: string, element: HTMLElement) => {
+                this.hoverStack.hide();
                 const rect = element.getBoundingClientRect();
                 await this.popup.show(word, sentence, {
                     x: rect.left + rect.width / 2,
                     y: rect.bottom + 10,
                     anchorRect: rect,
                     subtitleLanguage: settings.metheusTargetLanguage || 'en',
+                    surfaceKind: 'text',
                 });
             };
+
+            this.colorizer.setOnWordHover((word, sentence, element) => {
+                void this.showWordHover(word, sentence, element);
+            });
+            this.colorizer.setOnWordHoverEnd(() => {
+                this.hoverStack.hide();
+            });
 
             // Start colorizing
             // Increase max elements to cover comments/reviews which might be further down
@@ -659,6 +728,9 @@ class PageColorizer {
                 const target = (event as MouseEvent).target as HTMLElement | null;
                 const wordEl = target?.closest('.ln-word') as HTMLElement | null;
                 if (!wordEl) {
+                    return;
+                }
+                if (this.isVideoManagedWord(wordEl)) {
                     return;
                 }
 
@@ -674,9 +746,60 @@ class PageColorizer {
                     y: rect.bottom + 10,
                     anchorRect: rect,
                     subtitleLanguage: settings.metheusTargetLanguage || 'en',
+                    surfaceKind: 'text',
                 });
             };
             document.addEventListener('click', this.clickHandler, true);
+
+            this.hoverOverHandler = (event: Event) => {
+                if (document.body.classList.contains('asbplayer-popup-active')) {
+                    return;
+                }
+
+                const target = (event as PointerEvent).target as HTMLElement | null;
+                const wordEl = target?.closest('.ln-word') as HTMLElement | null;
+                if (!wordEl || wordEl === this.lastHoveredWord) {
+                    return;
+                }
+                if (this.isVideoManagedWord(wordEl)) {
+                    return;
+                }
+
+                const word = wordEl.dataset.word || wordEl.textContent?.trim() || '';
+                if (!word) {
+                    return;
+                }
+
+                this.lastHoveredWord = wordEl;
+                const sentence = this.resolveSentenceForWord(wordEl);
+                void this.showWordHover(word, sentence, wordEl);
+            };
+            document.addEventListener('pointerover', this.hoverOverHandler, true);
+
+            this.hoverOutHandler = (event: Event) => {
+                const target = (event as PointerEvent).target as HTMLElement | null;
+                const fromWord = target?.closest('.ln-word') as HTMLElement | null;
+                if (!fromWord) {
+                    return;
+                }
+                if (this.isVideoManagedWord(fromWord)) {
+                    return;
+                }
+
+                const relatedTarget =
+                    event instanceof PointerEvent && event.relatedTarget instanceof HTMLElement
+                        ? event.relatedTarget
+                        : null;
+                const toWord = relatedTarget?.closest('.ln-word') as HTMLElement | null;
+                if (toWord && toWord !== fromWord) {
+                    this.lastHoveredWord = toWord;
+                    return;
+                }
+
+                this.lastHoveredWord = null;
+                this.hoverStack.hide();
+            };
+            document.addEventListener('pointerout', this.hoverOutHandler, true);
 
             // Set up observer for dynamic content
             this.setupObserver();
@@ -1247,6 +1370,15 @@ class PageColorizer {
             document.removeEventListener('click', this.clickHandler, true);
             this.clickHandler = null;
         }
+        if (this.hoverOverHandler) {
+            document.removeEventListener('pointerover', this.hoverOverHandler, true);
+            this.hoverOverHandler = null;
+        }
+        if (this.hoverOutHandler) {
+            document.removeEventListener('pointerout', this.hoverOutHandler, true);
+            this.hoverOutHandler = null;
+        }
+        this.lastHoveredWord = null;
         if (this.runtimeMessageListener) {
             browser.runtime.onMessage.removeListener(this.runtimeMessageListener);
             this.runtimeMessageListener = undefined;

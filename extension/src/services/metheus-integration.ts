@@ -12,10 +12,14 @@ import { getMetheusController, MetheusController, resetMetheusController } from 
 import SubtitleController from '../controllers/subtitle-controller';
 import type { WordStatus } from './metheus-sync';
 import { getSubtitleColorizer } from './subtitle-colorizer';
+import { getWordHoverStack } from './word-hover-stack';
 import { normalizeLangCode } from './language-utils';
 
 let _controller: MetheusController | null = null;
 let _initialized = false;
+let _boundLnWordPointerOverCapture: ((event: PointerEvent) => void) | null = null;
+let _boundLnWordPointerOutCapture: ((event: PointerEvent) => void) | null = null;
+let _lastHoveredLnWord: HTMLElement | null = null;
 
 /**
  * Initialize Metheus integration
@@ -208,58 +212,65 @@ export async function initializeMetheus(
             }
         });
 
-        // Word clicks
-        const handleLnWordPointerDownCapture = (event: PointerEvent) => {
-            if (!_controller) {
-                return;
-            }
-
-            if (event.defaultPrevented) {
-                return;
-            }
-
-            // In Shadow DOM, event.target is retargeted to the host.
-            // Use composedPath() to reliably detect clicks inside the popup.
-            const path = event.composedPath?.() ?? [];
-            const clickedInsidePopup = path.some((node) => {
-                if (node instanceof HTMLElement) {
-                    return node.id === 'metheus-popup-host' || node.id === 'ln-popup-root';
+        // Hover stack for video/tokenized .ln-word elements.
+        // Clicks are already handled centrally by SubtitleColorizer capture logic.
+        if (!_boundLnWordPointerOverCapture) {
+            _boundLnWordPointerOverCapture = (event: PointerEvent) => {
+                if (!_controller || document.body.classList.contains('asbplayer-popup-active')) {
+                    return;
                 }
-                return false;
-            });
-            if (clickedInsidePopup) {
-                return;
-            }
 
-            const target = event.target as HTMLElement | null;
-            if (!target) {
-                return;
-            }
+                const path = event.composedPath?.() ?? [];
+                const insidePopup = path.some((node) => {
+                    if (node instanceof HTMLElement) {
+                        return node.id === 'metheus-popup-host' || node.id === 'ln-popup-root';
+                    }
+                    return false;
+                });
+                if (insidePopup) {
+                    return;
+                }
 
-            const wordEl = target.closest('.ln-word') as HTMLElement | null;
-            if (!wordEl) {
-                return;
-            }
+                const target = event.target as HTMLElement | null;
+                const wordEl = target?.closest('.ln-word') as HTMLElement | null;
+                if (!wordEl || wordEl === _lastHoveredLnWord) {
+                    return;
+                }
 
-            const word = wordEl.dataset.word;
-            const sentence = wordEl.dataset.sentence;
-            if (!word || !sentence) {
-                return;
-            }
+                const word = wordEl.dataset.word;
+                const sentence = wordEl.dataset.sentence;
+                if (!word || !sentence) {
+                    return;
+                }
 
-            // Ensure a clear visual indicator of the clicked token.
-            document.querySelectorAll('.ln-word-active').forEach((el) => {
-                el.classList.remove('ln-word-active');
-            });
-            wordEl.classList.add('ln-word-active');
+                _lastHoveredLnWord = wordEl;
+                void _controller.handleWordHover(word, sentence, wordEl);
+            };
+        }
 
-            event.preventDefault();
-            event.stopPropagation();
+        if (!_boundLnWordPointerOutCapture) {
+            _boundLnWordPointerOutCapture = (event: PointerEvent) => {
+                const target = event.target as HTMLElement | null;
+                const fromWord = target?.closest('.ln-word') as HTMLElement | null;
+                if (!fromWord) {
+                    return;
+                }
 
-            void _controller.handleWordClick(word, sentence, wordEl);
-        };
+                const relatedTarget =
+                    event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;
+                const toWord = relatedTarget?.closest('.ln-word') as HTMLElement | null;
+                if (toWord && toWord !== fromWord) {
+                    _lastHoveredLnWord = toWord;
+                    return;
+                }
 
-        document.addEventListener('pointerdown', handleLnWordPointerDownCapture, true);
+                _lastHoveredLnWord = null;
+                getWordHoverStack(settingsProvider).hide();
+            };
+        }
+
+        document.addEventListener('pointerover', _boundLnWordPointerOverCapture, true);
+        document.addEventListener('pointerout', _boundLnWordPointerOutCapture, true);
 
         _initialized = true;
         console.log('[LN Integration] Initialized successfully');
@@ -282,6 +293,13 @@ export function cleanupMetheus(): void {
     }
 
     document.removeEventListener('metheus-create-card', handleCreateCard);
+    if (_boundLnWordPointerOverCapture) {
+        document.removeEventListener('pointerover', _boundLnWordPointerOverCapture, true);
+    }
+    if (_boundLnWordPointerOutCapture) {
+        document.removeEventListener('pointerout', _boundLnWordPointerOutCapture, true);
+    }
+    _lastHoveredLnWord = null;
     _initialized = false;
 
     console.log('[LN Integration] Cleaned up');
